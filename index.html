@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -509,7 +510,7 @@ body { background-color: var(--bg-app); color: var(--text-main); overflow-x: hid
                     </div>
                     
                     <div class="detail-actions-wrapper">
-                        <button class="btn btn-secondary" onclick="ExportEngine.downloadAsImage()"><i data-lucide="image"></i> Download Invoice Image</button>
+                        <button class="btn btn-secondary" onclick="PDFEngine.downloadPDF()"><i data-lucide="image"></i> Download Invoice Image</button>
                         <button class="btn btn-primary" id="share-wa-btn" onclick="ExportEngine.shareOnWhatsApp()" style="background:#25D366; color:white;"><i data-lucide="message-square"></i> WhatsApp Share</button>
                         <button class="btn btn-primary" id="share-mail-btn" style="background:#2563EB"><i data-lucide="mail"></i> Email Dispatch</button>
                     </div>
@@ -576,500 +577,510 @@ body { background-color: var(--bg-app); color: var(--text-main); overflow-x: hid
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 
-    <script>
-        const ExportEngine = {
-    // 1. Core Render Worker (High Quality Image Generator)
-    generateSnapshot: async function() {
-        const element = document.getElementById('invoice-paper-printable');
-        if(!element) return null;
-        
-        try {
-            const canvas = await html2canvas(element, {
-                scale: 2, // Double resolution for high-quality text
-                useCORS: true,
-                logging: false,
-                backgroundColor: "#FFFFFF"
+</script>
+</script>
+<script>        
+    const DB = {            
+        get: (key) => JSON.parse(localStorage.getItem(`invoice_saas_${key}`)) || [],            
+        set: (key, data) => localStorage.setItem(`invoice_saas_${key}`, JSON.stringify(data)),            
+        getActiveUser: () => JSON.parse(sessionStorage.getItem('invoice_saas_session')),            
+        setActiveUser: (userObj) => {                
+            if (userObj) { sessionStorage.setItem('invoice_saas_session', JSON.stringify(userObj)); }                 
+            else { sessionStorage.removeItem('invoice_saas_session'); }            
+        }        
+    };
+    
+    const Toast = {            
+        show: (message, type = 'success') => {                
+            const container = document.getElementById('toast-container');                
+            if (!container) { alert(message); return; }
+            const toast = document.createElement('div');                
+            toast.className = `toast ${type}`;                
+            let iconName = type === 'success' ? 'check-circle' : 'alert-circle';                
+            toast.innerHTML = `<i data-lucide="${iconName}"></i> <span>${message}</span>`;                
+            container.appendChild(toast);                
+            if (window.lucide) lucide.createIcons();                
+            setTimeout(() => {                    
+                toast.style.opacity = '0';                    
+                toast.style.transform = 'translateY(-10px)';                    
+                toast.style.transition = 'all 0.25s ease';                    
+                setTimeout(() => toast.remove(), 250);                
+            }, 3000);            
+        }        
+    };
+    
+    const Loading = {            
+        start: (formElement) => {                
+            const btn = formElement.querySelector('button[type="submit"]');                
+            if (!btn) return;                
+            btn.disabled = true;                
+            btn.dataset.originalText = btn.innerHTML;                
+            btn.innerHTML = `<span class="loading-spinner"></span>`;            
+        },            
+        stop: (formElement) => {                
+            const btn = formElement.querySelector('button[type="submit"]');                
+            if (!btn || !btn.dataset.originalText) return;                
+            btn.disabled = false;                
+            btn.innerHTML = btn.dataset.originalText;            
+        }        
+    };
+    
+    /* 🛠️ CHANGED: IMAGE GENERATOR ENGINE (Saves Invoice as High-Quality JPG) */        
+    const PDFEngine = {            
+        downloadPDF: () => {                
+            const element = document.getElementById('invoice-paper-printable');                
+            if (!element) {
+                Toast.show("Printable invoice layer element not found in DOM.", "error");
+                return;
+            }
+            
+            const numEl = document.getElementById('paper-invoice-num');
+            const invNum = numEl ? numEl.innerText.replace(/[^a-zA-Z0-9]/g, '_') : 'INV_RECORDS';                
+            Toast.show("Generating High-Resolution Image...");                                
+            
+            // Backup styling
+            const originalStyleWidth = element.style.width;                
+            const originalStyleMinWidth = element.style.minWidth;                
+            const originalPadding = element.style.padding;
+            
+            // Clear look for crisp image rendering
+            element.style.width = '794px';                 
+            element.style.minWidth = '794px';                
+            element.style.padding = '40px'; 
+            
+            // Render HTML to Canvas and trigger direct download
+            html2canvas(element, { scale: 2, useCORS: true, logging: false }).then(canvas => {
+                const imageURI = canvas.toDataURL("image/jpeg", 1.0);
+                const createLink = document.createElement('a');
+                createLink.download = `Invoice_${invNum}.jpg`;
+                createLink.href = imageURI;
+                document.body.appendChild(createLink);
+                createLink.click();
+                createLink.remove();
+                
+                // Restore UI Layout
+                element.style.width = originalStyleWidth;                    
+                element.style.minWidth = originalStyleMinWidth;                    
+                element.style.padding = originalPadding;
+                Toast.show("Invoice Image Downloaded!");
+            }).catch(err => {
+                element.style.width = originalStyleWidth; element.style.minWidth = originalStyleMinWidth; element.style.padding = originalPadding;
+                Toast.show("Image Generation Failed.", "error");
             });
-            return canvas.toDataURL("image/png");
-        } catch (err) {
-            console.error("Image generation failed:", err);
-            return null;
-        }
-    },
-
-    // 2. Direct Image Download Engine
-    downloadAsImage: async function() {
-        const imgData = await this.generateSnapshot();
-        if(!imgData) return;
-
-        const invNum = document.getElementById('paper-invoice-num').innerText || 'Invoice';
-        const link = document.createElement('a');
-        link.href = imgData;
-        link.download = `${invNum.replace(/[^a-z0-9]/gi, '_').toLowerCase()}_snapshot.png`;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-    },
-
-    // 3. Cross-Platform Universal Share Engine (Mobile + PC)
-    shareOnWhatsApp: async function() {
-        const imgData = await this.generateSnapshot();
-        if(!imgData) {
-            alert("Error: Could not generate invoice image.");
-            return;
-        }
-
-        const invNum = document.getElementById('paper-invoice-num').innerText || 'IN-XX';
-        const clientName = document.getElementById('paper-client-name').innerText || 'Client';
-        const amount = document.getElementById('paper-table-amount').innerText || '$0.00';
-        const textMessage = `Hi ${clientName},\n\nHere is your invoice *${invNum}* for the amount of *${amount}*.`;
-
-        try {
-            // Base64 image ko actual File object me convert karna (Mobile compatibility ke liye)
-            const response = await fetch(imgData);
-            const blob = await response.blob();
-            const file = new File([blob], `${invNum.toLowerCase()}_invoice.png`, { type: 'image/png' });
-
-            // DETECT MOBILE & MODERN BROWSERS: Agar browser file sharing support karta hai
-            if (navigator.canShare && navigator.canShare({ files: [file] })) {
-                await navigator.share({
-                    files: [file],
-                    title: `Invoice ${invNum}`,
-                    text: textMessage
-                });
-            } 
-            // FALLBACK FOR PC / OLDER BROWSERS
-            else {
-                // PC par yeh image download bhi karega aur WhatsApp Web text ke sath open bhi karega
-                this.downloadAsImage(); 
-                
-                const encodedText = encodeURIComponent(`${textMessage}\n\n(Note: Invoice image has been downloaded to your system, please attach it manually.)`);
-                const whatsappUrl = `https://api.whatsapp.com/send?text=${encodedText}`;
-                window.open(whatsappUrl, '_blank');
-            }
-        } catch (err) {
-            console.error("Sharing processing failed:", err);
-            // Emergency Fallback
-            const encodedText = encodeURIComponent(textMessage);
-            window.open(`https://api.whatsapp.com/send?text=${encodedText}`, '_blank');
-        }
-    }
-};
-        
-    </script>
-
-    <script>
-        const DB = {
-            get: (key) => JSON.parse(localStorage.getItem(`invoice_saas_${key}`)) || [],
-            set: (key, data) => localStorage.setItem(`invoice_saas_${key}`, JSON.stringify(data)),
-            getActiveUser: () => JSON.parse(sessionStorage.getItem('invoice_saas_session')),
-            setActiveUser: (userObj) => {
-                if (userObj) { sessionStorage.setItem('invoice_saas_session', JSON.stringify(userObj)); } 
-                else { sessionStorage.removeItem('invoice_saas_session'); }
-            }
-        };
-
-        const Toast = {
-            show: (message, type = 'success') => {
-                const container = document.getElementById('toast-container');
-                const toast = document.createElement('div');
-                toast.className = `toast ${type}`;
-                let iconName = type === 'success' ? 'check-circle' : 'alert-circle';
-                toast.innerHTML = `<i data-lucide="${iconName}"></i> <span>${message}</span>`;
-                container.appendChild(toast);
-                lucide.createIcons();
-                setTimeout(() => {
-                    toast.style.opacity = '0';
-                    toast.style.transform = 'translateY(-10px)';
-                    toast.style.transition = 'all 0.25s ease';
-                    setTimeout(() => toast.remove(), 250);
-                }, 3000);
-            }
-        };
-
-        const Loading = {
-            start: (formElement) => {
-                const btn = formElement.querySelector('button[type="submit"]');
-                if (!btn) return;
-                btn.disabled = true;
-                btn.dataset.originalText = btn.innerHTML;
-                btn.innerHTML = `<span class="loading-spinner"></span>`;
-            },
-            stop: (formElement) => {
-                const btn = formElement.querySelector('button[type="submit"]');
-                if (!btn || !btn.dataset.originalText) return;
-                btn.disabled = false;
-                btn.innerHTML = btn.dataset.originalText;
-            }
-        };
-
-        /* 🛠️ FIXED: PREMIUM PDF GENERATOR ENGINE (No Clipping anymore) */
-       /* 🛠️ ENHANCED: PERFECT A4 SIZE PDF GENERATOR ENGINE */
-        const PDFEngine = {
-            downloadPDF: () => {
-                const element = document.getElementById('invoice-paper-printable');
-                const invNum = document.getElementById('paper-invoice-num').innerText;
-                Toast.show("Generating Proper A4 PDF Vector...");
-                
-                // Invoice container ki styling ko backup karein
-                const originalStyleWidth = element.style.width;
-                const originalStyleMinWidth = element.style.minWidth;
-                const originalPadding = element.style.padding;
-
-                // Standard A4 dimensions pixel scaling aur crisp view fix
-                element.style.width = '794px'; 
-                element.style.minWidth = '794px';
-                element.style.padding = '40px'; 
-
-                const options = {
-                    margin:       0, // Page margins zero rakhein kyunki styling padding sambhal legi
-                    filename:     `Invoice_${invNum}.pdf`,
-                    image:        { type: 'jpeg', quality: 1.0 }, // Maximum quality
-                    html2canvas:  { 
-                        scale: 2, // High resolution crisp text ke liye
-                        useCORS: true, 
-                        logging: false,
-                        letterRendering: true
-                    },
-                    jsPDF:        { unit: 'px', format: 'a4', orientation: 'portrait', hotfixes: ['px_scaling'] }
-                };
-
-                // PDF save karne ke baad original web styling wapis restore karein
-                html2pdf().set(options).from(element).save().then(() => {
-                    element.style.width = originalStyleWidth;
-                    element.style.minWidth = originalStyleMinWidth;
-                    element.style.padding = originalPadding;
-                });
-            }
-        };
-
-        /* 🛠️ FIXED: STABLE WHATSAPP FALLBACK DISPATCH SYSTEM */
-        const InvoiceDetailView = {
-            render: (hash) => {
-                const urlParams = new URLSearchParams(hash.includes('?') ? hash.split('?')[1] : '');
-                const id = urlParams.get('id'); const user = DB.getActiveUser();
-                const match = DB.get('invoices').find(inv => inv.id === id && inv.userId === user.id);
-                if (!match) { Toast.show("Target database asset validation execution error.", "error"); window.location.hash = '#invoices'; return; }
-
-                document.getElementById('paper-invoice-num').innerText = match.invoiceNumber;
-                document.getElementById('paper-invoice-title').innerText = match.title;
-                document.getElementById('paper-user-email').innerText = user.email;
-                document.getElementById('paper-user-phone').innerText = user.phone || 'No Phone Signature';
-                document.getElementById('paper-client-name').innerText = match.clientName;
-                document.getElementById('paper-client-email').innerText = match.clientEmail;
-                document.getElementById('paper-client-phone').innerText = match.clientPhone;
-                document.getElementById('paper-invoice-date').innerText = match.date;
-                document.getElementById('paper-table-desc').innerText = match.title;
-                document.getElementById('paper-table-amount').innerText = `$${match.amount.toFixed(2)}`;
-                document.getElementById('paper-invoice-notes').innerText = match.notes || 'No custom underwriting terms specified.';
-
-                // Remake notification message body safely
-                const cleanPhone = match.clientPhone.replace(/\D/g, ''); // Removes spaces or '+'
-                const msgText = `Hello ${match.clientName}, Please find your Invoice ${match.invoiceNumber} for Amount $${match.amount.toFixed(2)}. Due Date: ${match.date}.`;
-
-                // WhatsApp Event Handler
-                document.getElementById('share-wa-btn').onclick = async () => {
-                    Toast.show("Processing Dispatch Protocols...");
-                    const paperElement = document.getElementById('invoice-paper-printable');
-                    
-                    try {
-                        // Safe checking if advanced file sharing is supported on secure server
-                        if (navigator.canShare && navigator.share) {
-                            const canvas = await html2canvas(paperElement, { scale: 2, useCORS: true });
-                            canvas.toBlob(async (blob) => {
-                                if (blob) {
-                                    const file = new File([blob], `Invoice_${match.invoiceNumber}.jpg`, { type: "image/jpeg" });
-                                    await navigator.share({
-                                        files: [file],
-                                        title: `Invoice ${match.invoiceNumber}`,
-                                        text: msgText
-                                    });
-                                }
-                            }, 'image/jpeg');
-                        } else {
-                            // Perfect absolute URL text redirection fallback for Mobile/PC apps
-                            window.open(`https://api.whatsapp.com/send?phone=${cleanPhone}&text=${encodeURIComponent(msgText)}`, '_blank');
-                        }
-                    } catch (err) {
-                        // Emergency system fallback direct hook
-                        window.open(`https://api.whatsapp.com/send?phone=${cleanPhone}&text=${encodeURIComponent(msgText)}`, '_blank');
-                    }
-                };
-
-                // Mail Event Handler
-                document.getElementById('share-mail-btn').onclick = () => {
-                    window.location.href = `mailto:${match.clientEmail}?subject=${encodeURIComponent('Invoice Records ' + match.invoiceNumber)}&body=${encodeURIComponent(msgText)}`;
+        }        
+    };
+    
+    /* 🛠️ FIXED: STABLE WHATSAPP FALLBACK DISPATCH SYSTEM WITH RECEIVED CONTEXT */        
+    const InvoiceDetailView = {            
+        render: (hash) => {                
+            const urlParams = new URLSearchParams(hash.includes('?') ? hash.split('?')[1] : '');                
+            const id = urlParams.get('id'); const user = DB.getActiveUser();                
+            const match = DB.get('invoices').find(inv => inv.id === id && inv.userId === user.id);                
+            if (!match) { Toast.show("Target database asset validation execution error.", "error"); window.location.hash = '#invoices'; return; }
+            
+            const currentStatus = match.status || 'Pending';
+            const statusBranding = currentStatus === 'Received' ? ' [PAID / RECEIVED]' : ' [PENDING]';
+            
+            if(document.getElementById('paper-invoice-num')) document.getElementById('paper-invoice-num').innerText = match.invoiceNumber + statusBranding;                
+            if(document.getElementById('paper-invoice-title')) document.getElementById('paper-invoice-title').innerText = match.title;                
+            if(document.getElementById('paper-user-email')) document.getElementById('paper-user-email').innerText = user.email;                
+            if(document.getElementById('paper-user-phone')) document.getElementById('paper-user-phone').innerText = user.phone || 'No Phone Signature';                
+            if(document.getElementById('paper-client-name')) document.getElementById('paper-client-name').innerText = match.clientName;                
+            if(document.getElementById('paper-client-email')) document.getElementById('paper-client-email').innerText = match.clientEmail;                
+            if(document.getElementById('paper-client-phone')) document.getElementById('paper-client-phone').innerText = match.clientPhone;                
+            if(document.getElementById('paper-invoice-date')) document.getElementById('paper-invoice-date').innerText = match.date;                
+            if(document.getElementById('paper-table-desc')) document.getElementById('paper-table-desc').innerText = match.title;                
+            if(document.getElementById('paper-table-amount')) document.getElementById('paper-table-amount').innerText = `$${match.amount.toFixed(2)}`;                
+            if(document.getElementById('paper-invoice-notes')) document.getElementById('paper-invoice-notes').innerText = match.notes || 'No custom underwriting terms specified.';
+            
+            const cleanPhone = match.clientPhone.replace(/\D/g, ''); 
+            const msgText = currentStatus === 'Received' 
+                ? `Hello ${match.clientName}, Thank you! Payment for Invoice ${match.invoiceNumber} ($${match.amount.toFixed(2)}) has been RECEIVED successfully.` 
+                : `Hello ${match.clientName}, Please find your Invoice ${match.invoiceNumber} for Amount $${match.amount.toFixed(2)}. Due Date: ${match.date}.`;
+            
+            const waBtn = document.getElementById('share-wa-btn');
+            if(waBtn) {
+                waBtn.onclick = async () => {                    
+                    Toast.show("Processing Dispatch Protocols...");                    
+                    const paperElement = document.getElementById('invoice-paper-printable');                                        
+                    try {                        
+                        if (navigator.canShare && navigator.share) {                            
+                            const canvas = await html2canvas(paperElement, { scale: 2, useCORS: true });                            
+                            canvas.toBlob(async (blob) => {                                
+                                if (blob) {                                    
+                                    const file = new File([blob], `Invoice_${match.invoiceNumber}.jpg`, { type: "image/jpeg" });                                    
+                                    await navigator.share({ files: [file], title: `Invoice ${match.invoiceNumber}`, text: msgText });                                
+                                }                            
+                            }, 'image/jpeg');                        
+                        } else {                            
+                            window.open(`https://api.whatsapp.com/send?phone=${cleanPhone}&text=${encodeURIComponent(msgText)}`, '_blank');                        
+                        }                    
+                    } catch (err) {                        
+                        window.open(`https://api.whatsapp.com/send?phone=${cleanPhone}&text=${encodeURIComponent(msgText)}`, '_blank');                    
+                    }                
                 };
             }
-        };
-
-        const AppRouter = {
-            routes: ['dashboard', 'invoices', 'create-invoice', 'settings', 'invoice-detail', 'setup'],
-            init: () => {
-                window.addEventListener('hashchange', () => AppRouter.route(window.location.hash));
+            
+            const mailBtn = document.getElementById('share-mail-btn');
+            if(mailBtn) {
+                mailBtn.onclick = () => {                    
+                    window.location.href = `mailto:${match.clientEmail}?subject=${encodeURIComponent('Invoice Payment Update ' + match.invoiceNumber)}&body=${encodeURIComponent(msgText)}`;                
+                };            
+            }
+        }        
+    };
+    
+    const AppRouter = {            
+        routes: ['dashboard', 'invoices', 'create-invoice', 'settings', 'invoice-detail', 'setup'],            
+        init: () => {                
+            window.addEventListener('hashchange', () => AppRouter.route(window.location.hash));                
+            AppRouter.route(window.location.hash);            
+        },            
+        route: (hash) => {                
+            const activeUser = DB.getActiveUser();                
+            if (!activeUser) {                    
+                document.getElementById('app-layer').classList.add('hidden');                    
+                document.getElementById('auth-layer').classList.remove('hidden');                    
+                if (hash === '#signup') { Auth.toggleAuthView('signup'); } else { window.location.hash = '#login'; Auth.toggleAuthView('login'); }                    
+                return;                
+            }                
+            document.getElementById('auth-layer').classList.add('hidden');                
+            document.getElementById('app-layer').classList.remove('hidden');                
+            let targetView = hash.replace('#', '').split('?')[0] || 'dashboard';                
+            if ((!activeUser.phone || !activeUser.svpPin) && targetView !== 'logout') {                    
+                targetView = 'setup'; window.location.hash = '#setup';                
+            }                
+            if (!AppRouter.routes.includes(targetView)) { targetView = 'dashboard'; window.location.hash = '#dashboard'; }                
+            document.querySelectorAll('.view-panel').forEach(panel => panel.classList.add('hidden'));                
+            document.getElementById(`view-${targetView}`).classList.remove('hidden');                
+            document.querySelectorAll('.sidebar-link, .bottom-nav-link').forEach(link => link.classList.remove('active'));                
+            const navItem = document.getElementById(`nav-${targetView}`);                
+            const bnavItem = document.getElementById(`bnav-${targetView}`);                
+            if (navItem) navItem.classList.add('active'); if (bnavItem) bnavItem.classList.add('active');                
+            AppRouter.executeViewLifecycle(targetView, hash);                
+            if (window.lucide) lucide.createIcons();            
+        },            
+        executeViewLifecycle: (view, hash) => {                
+            const user = DB.getActiveUser();                
+            if(user) {                    
+                if(document.getElementById('user-display-name')) document.getElementById('user-display-name').innerText = user.name;                    
+                if(document.getElementById('user-display-email')) document.getElementById('user-display-email').innerText = user.email;                
+            }                
+            switch (view) {                    
+                case 'dashboard': DashboardView.render(); break;                    
+                case 'invoices': InvoicesListView.render(); break;                    
+                case 'create-invoice': InvoiceFormView.render(hash); break;                    
+                case 'invoice-detail': InvoiceDetailView.render(hash); break;                    
+                case 'settings': SettingsView.render(); break;                
+            }            
+        }        
+    };
+    
+    const Auth = {            
+        toggleAuthView: (viewName) => {                
+            document.getElementById('auth-layer').classList.remove('hidden');                
+            if(viewName === 'login') {                    
+                document.getElementById('login-card').classList.remove('hidden');                    
+                document.getElementById('signup-card').classList.add('hidden');                
+            } else {                    
+                document.getElementById('login-card').classList.add('hidden');                    
+                document.getElementById('signup-card').classList.remove('hidden');                
+            }                
+            if (window.lucide) lucide.createIcons();            
+        },            
+        handleSignup: (e) => {                
+            e.preventDefault();                
+            const form = document.getElementById('signup-form');                
+            const name = document.getElementById('signup-name').value.trim();                
+            const email = document.getElementById('signup-email').value.trim().toLowerCase();                
+            const password = document.getElementById('signup-password').value;                
+            if(password.length < 6) { return Toast.show("Password must reach 6 characters.", "error"); }                
+            const users = DB.get('users');                
+            if(users.some(u => u.email === email)) { return Toast.show("Email vector already exists.", "error"); }                
+            Loading.start(form);                
+            setTimeout(() => {                    
+                const newUser = { id: 'usr_' + Date.now(), name, email, password, phone: '', svpPin: '', invoiceCounter: 0 };                    
+                users.push(newUser); DB.set('users', users); DB.setActiveUser(newUser);                    
+                Loading.stop(form); Toast.show("Identity registered.");                    
+                form.reset(); window.location.hash = '#setup';                
+            }, 1000);            
+        },            
+        handleLogin: (e) => {                
+            e.preventDefault();                
+            const form = document.getElementById('login-form');                
+            const email = document.getElementById('login-email').value.trim().toLowerCase();                
+            const password = document.getElementById('login-password').value;                
+            const users = DB.get('users');                
+            const match = users.find(u => u.email === email && u.password === password);                
+            if(!match) { return Toast.show("Invalid tracking identifiers.", "error"); }                
+            Loading.start(form);                
+            setTimeout(() => {                    
+                DB.setActiveUser(match); Loading.stop(form);                    
+                Toast.show("Security authentication verified.");                    
+                form.reset(); window.location.hash = match.svpPin ? '#dashboard' : '#setup';                
+            }, 800);            
+        },            
+        logout: () => { DB.setActiveUser(null); Toast.show("Session purged safely."); window.location.hash = '#login'; }        
+    };
+    
+    const User = {            
+        handleSetup: (e) => {                
+            e.preventDefault();                
+            const phone = document.getElementById('setup-phone').value.trim();                
+            const pin = document.getElementById('setup-pin').value;                
+            if(pin.length !== 4 || isNaN(pin)) { return Toast.show("SVP pins require exactly 4 digits.", "error"); }                
+            const current = DB.getActiveUser(); current.phone = phone; current.svpPin = pin;                
+            User.syncUserToDatabase(current); Toast.show("Parameters committed.");                
+            window.location.hash = '#dashboard';            
+        },            
+        updateProfile: (e) => {                
+            e.preventDefault();                
+            const current = DB.getActiveUser();                
+            current.name = document.getElementById('settings-name').value.trim();                
+            current.phone = document.getElementById('settings-phone').value.trim();                
+            User.syncUserToDatabase(current); Toast.show("Identity updated.");            
+        },            
+        updatePassword: (e) => {                
+            e.preventDefault();                
+            const pass = document.getElementById('settings-pass').value;                
+            if(pass.length < 6) { return Toast.show("Requires 6 characters.", "error"); }                
+            const current = DB.getActiveUser(); current.password = pass;                
+            User.syncUserToDatabase(current); document.getElementById('settings-pass-form').reset();                
+            Toast.show("Password updated.");            
+        },            
+        updatePin: (e) => {                
+            e.preventDefault();                
+            const pin = document.getElementById('settings-pin').value;                
+            if(pin.length !== 4 || isNaN(pin)) { return Toast.show("Invalid PIN configuration format.", "error"); }                
+            const current = DB.getActiveUser(); current.svpPin = pin;                
+            User.syncUserToDatabase(current); document.getElementById('settings-pin-form').reset();                
+            Toast.show("SVP security pin updated safely.");            
+        },            
+        syncUserToDatabase: (userObj) => {                
+            DB.setActiveUser(userObj); const users = DB.get('users');                
+            const index = users.findIndex(u => u.id === userObj.id);                
+            if(index !== -1) { users[index] = userObj; DB.set('users', users); }            
+        }        
+    };
+    
+    const SecurityEngine = {            
+        pendingAction: null,            
+        challengeSvp: (onSuccessAction) => {                
+            SecurityEngine.pendingAction = onSuccessAction;                
+            document.getElementById('svp-modal-input').value = '';                
+            document.getElementById('svp-modal').classList.add('open');                
+            document.getElementById('svp-modal-input').focus();            
+        },            
+        closeSvpModal: () => { document.getElementById('svp-modal').classList.remove('open'); SecurityEngine.pendingAction = null; },            
+        submitSvpVerification: (e) => {                
+            e.preventDefault();                
+            const inputPin = document.getElementById('svp-modal-input').value;                
+            if (inputPin === DB.getActiveUser().svpPin) {                    
+                const actionToExecute = SecurityEngine.pendingAction; SecurityEngine.closeSvpModal();                    
+                if(actionToExecute) actionToExecute();                
+            } else { Toast.show("SVP Access rejected: Code Invalid.", "error"); }            
+        }        
+    };
+    
+    const Invoice = {            
+        activeDeleteId: null,            
+        handleFormSubmit: (e) => { e.preventDefault(); SecurityEngine.challengeSvp(() => { Invoice.commitFormToStorage(); }); },            
+        commitFormToStorage: () => {                
+            const editId = document.getElementById('invoice-edit-id').value;                
+            const title = document.getElementById('invoice-title').value.trim();                
+            const clientName = document.getElementById('invoice-client-name').value.trim();                
+            const clientEmail = document.getElementById('invoice-client-email').value.trim().toLowerCase();                
+            const clientPhone = document.getElementById('invoice-client-phone').value.trim();                
+            const date = document.getElementById('invoice-date').value;                
+            const amount = parseFloat(document.getElementById('invoice-amount').value);                
+            const notes = document.getElementById('invoice-notes').value.trim();                
+            
+            const selectEl = document.getElementById('invoice-status-select');
+            const status = selectEl ? selectEl.value : 'Pending';
+            
+            const user = DB.getActiveUser(); const invoices = DB.get('invoices');
+            
+            if (editId) {                    
+                const index = invoices.findIndex(inv => inv.id === editId && inv.userId === user.id);                    
+                if (index !== -1) {                        
+                    invoices[index] = { ...invoices[index], title, clientName, clientEmail, clientPhone, date, amount, notes, status };                        
+                    DB.set('invoices', invoices); Toast.show("Changes saved.");                    
+                }                
+            } else {                    
+                user.invoiceCounter += 1; const invoiceNumber = `IN-${String(user.invoiceCounter).padStart(2, '0')}`;                    
+                const newInvoice = { id: 'inv_' + Date.now(), userId: user.id, invoiceNumber, title, clientName, clientEmail, clientPhone, date, amount, notes, status, createdAt: new Date().toISOString() };                    
+                invoices.push(newInvoice); DB.set('invoices', invoices); User.syncUserToDatabase(user);                     
+                Toast.show(`Invoice minted code assigned: ${invoiceNumber}`);                
+            }                
+            document.getElementById('invoice-main-form').reset(); window.location.hash = '#invoices';            
+        },            
+        triggerDeleteConfirm: (id) => {                
+            Invoice.activeDeleteId = id; document.getElementById('delete-modal').classList.add('open');                
+            document.getElementById('delete-modal-confirm-btn').onclick = () => { Invoice.executePurge(Invoice.activeDeleteId); };            
+        },            
+        closeDeleteModal: () => { document.getElementById('delete-modal').classList.remove('open'); Invoice.activeDeleteId = null; },            
+        executePurge: (id) => {                
+            const user = DB.getActiveUser(); let invoices = DB.get('invoices');                
+            invoices = invoices.filter(inv => !(inv.id === id && inv.userId === user.id));                
+            DB.set('invoices', invoices); Invoice.closeDeleteModal(); Toast.show("Record entry purged safely.");                
+            AppRouter.route(window.location.hash.split('?')[0]);            
+        },
+        toggleStatus: (id) => {
+            const user = DB.getActiveUser();
+            let invoices = DB.get('invoices');
+            const index = invoices.findIndex(inv => inv.id === id && inv.userId === user.id);
+            if (index !== -1) {
+                invoices[index].status = invoices[index].status === 'Received' ? 'Pending' : 'Received';
+                DB.set('invoices', invoices);
+                Toast.show(`Invoice status flipped to ${invoices[index].status}`);
                 AppRouter.route(window.location.hash);
-            },
-            route: (hash) => {
-                const activeUser = DB.getActiveUser();
-                if (!activeUser) {
-                    document.getElementById('app-layer').classList.add('hidden');
-                    document.getElementById('auth-layer').classList.remove('hidden');
-                    if (hash === '#signup') { Auth.toggleAuthView('signup'); } else { window.location.hash = '#login'; Auth.toggleAuthView('login'); }
-                    return;
-                }
-                document.getElementById('auth-layer').classList.add('hidden');
-                document.getElementById('app-layer').classList.remove('hidden');
-                let targetView = hash.replace('#', '').split('?')[0] || 'dashboard';
-                if ((!activeUser.phone || !activeUser.svpPin) && targetView !== 'logout') {
-                    targetView = 'setup'; window.location.hash = '#setup';
-                }
-                if (!AppRouter.routes.includes(targetView)) { targetView = 'dashboard'; window.location.hash = '#dashboard'; }
-                document.querySelectorAll('.view-panel').forEach(panel => panel.classList.add('hidden'));
-                document.getElementById(`view-${targetView}`).classList.remove('hidden');
-                document.querySelectorAll('.sidebar-link, .bottom-nav-link').forEach(link => link.classList.remove('active'));
-                const navItem = document.getElementById(`nav-${targetView}`);
-                const bnavItem = document.getElementById(`bnav-${targetView}`);
-                if (navItem) navItem.classList.add('active'); if (bnavItem) bnavItem.classList.add('active');
-                AppRouter.executeViewLifecycle(targetView, hash);
-                lucide.createIcons();
-            },
-            executeViewLifecycle: (view, hash) => {
-                const user = DB.getActiveUser();
-                if(user) {
-                    document.getElementById('user-display-name').innerText = user.name;
-                    document.getElementById('user-display-email').innerText = user.email;
-                }
-                switch (view) {
-                    case 'dashboard': DashboardView.render(); break;
-                    case 'invoices': InvoicesListView.render(); break;
-                    case 'create-invoice': InvoiceFormView.render(hash); break;
-                    case 'invoice-detail': InvoiceDetailView.render(hash); break;
-                    case 'settings': SettingsView.render(); break;
+            }
+        }
+    };
+    
+    const DashboardView = {            
+        render: () => {                
+            const user = DB.getActiveUser(); const invoices = DB.get('invoices').filter(i => i.userId === user.id);                
+            document.getElementById('welcome-heading').innerText = `Portal: ${user.name}`;                
+            document.getElementById('metric-count').innerText = invoices.length;                
+            const totalRev = invoices.reduce((acc, curr) => acc + curr.amount, 0);                
+            document.getElementById('metric-revenue').innerText = `$${totalRev.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits:2})}`;                
+            const sortedRecent = [...invoices].sort((a,b) => new Date(b.createdAt) - new Date(a.createdAt)).slice(0, 3);                
+            const tbody = document.getElementById('dashboard-table-body'); tbody.innerHTML = '';                
+            
+            if(sortedRecent.length === 0) {                    
+                tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; color:var(--text-muted); padding: 24px 0;">No asset logs initialized.</td></tr>`; return;                
+            }
+            
+            const thead = tbody.closest('table').querySelector('thead tr');
+            if (thead && !thead.innerHTML.includes('Status')) {
+                const th = document.createElement('th'); th.innerText = 'Status';
+                thead.insertBefore(th, thead.lastElementChild);
+            }
+            
+            sortedRecent.forEach(inv => {                    
+                const currentStatus = inv.status || 'Pending';
+                const isReceived = currentStatus === 'Received';
+                const badgeBg = isReceived ? '#d4edda' : '#fff3cd';
+                const badgeColor = isReceived ? '#155724' : '#856404';
+
+                const tr = document.createElement('tr');                    
+                tr.innerHTML = `
+                    <td data-label="ID" style="font-weight:700; color:var(--brand-primary)">${inv.invoiceNumber}</td>
+                    <td data-label="Client / Title"><div style="font-weight:700">${inv.title}</div><div style="font-size:12px; color:var(--text-muted); margin-top:2px;">${inv.clientName}</div></td>
+                    <td data-label="Date">${inv.date}</td>
+                    <td data-label="Amount" style="font-weight:700; color:var(--text-main)">$${inv.amount.toFixed(2)}</td>
+                    <td data-label="Status">
+                        <span onclick="Invoice.toggleStatus('${inv.id}')" style="cursor:pointer; padding:4px 8px; border-radius:4px; font-size:12px; font-weight:700; background:${badgeBg}; color:${badgeColor}">
+                            ${currentStatus}
+                        </span>
+                    </td>
+                    <td data-label="Actions" class="actions-cell"><button class="btn-icon" onclick="window.location.hash='#invoice-detail?id=${inv.id}'"><i data-lucide="eye"></i></button></td>`;                    
+                tbody.appendChild(tr);                
+            });            
+        }        
+    };
+    
+    const InvoicesListView = {            
+        render: () => {                
+            const user = DB.getActiveUser(); const invoices = DB.get('invoices').filter(i => i.userId === user.id);                
+            const tbody = document.getElementById('invoices-table-body'); tbody.innerHTML = '';                
+            
+            if(invoices.length === 0) {                    
+                tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; color:var(--text-muted); padding: 24px 0;">Zero records files inside logs.</td></tr>`; return;                
+            }
+
+            const thead = tbody.closest('table').querySelector('thead tr');
+            if (thead && !thead.innerHTML.includes('Status')) {
+                const th = document.createElement('th'); th.innerText = 'Status';
+                thead.insertBefore(th, thead.lastElementChild);
+            }
+            
+            invoices.forEach(inv => {                    
+                const currentStatus = inv.status || 'Pending';
+                const isReceived = currentStatus === 'Received';
+                const statusColor = isReceived ? '#28a745' : '#6c757d';
+
+                const tr = document.createElement('tr');                    
+                tr.innerHTML = `
+                    <td data-label="Invoice ID" style="font-weight:700; color:var(--brand-primary)">${inv.invoiceNumber}</td>
+                    <td data-label="Title Name" style="font-weight:600">${inv.title}</td>
+                    <td data-label="Client Target">${inv.clientName}</td>
+                    <td data-label="Date">${inv.date}</td>
+                    <td data-label="Valuation" style="font-weight:700; color:var(--text-main)">$${inv.amount.toFixed(2)}</td>
+                    <td data-label="Status" style="font-weight:700; color:${statusColor}">${currentStatus}</td>
+                    <td data-label="Actions" class="actions-cell">
+                        <button class="btn-icon" style="color:${isReceived ? '#28a745' : '#6c757d'}" title="Toggle Received Status" onclick="Invoice.toggleStatus('${inv.id}')">
+                            <i data-lucide="${isReceived ? 'check-square' : 'square'}"></i>
+                        </button>
+                        <button class="btn-icon" onclick="window.location.hash='#invoice-detail?id=${inv.id}'"><i data-lucide="eye"></i></button>
+                        <button class="btn-icon" onclick="window.location.hash='#create-invoice?edit=${inv.id}'"><i data-lucide="edit-2"></i></button>
+                        <button class="btn-icon danger" onclick="Invoice.triggerDeleteConfirm('${inv.id}')"><i data-lucide="trash-2"></i></button>
+                    </td>`;                    
+                tbody.appendChild(tr);                
+            });            
+        }        
+    };
+    
+    const InvoiceFormView = {            
+        render: (hash) => {                
+            const form = document.getElementById('invoice-main-form'); form.reset();                
+            const urlParams = new URLSearchParams(hash.includes('?') ? hash.split('?')[1] : '');                
+            const editId = urlParams.get('edit'); const user = DB.getActiveUser();                
+            
+            let selectEl = document.getElementById('invoice-status-select');
+            if(!selectEl) {
+                const targetRow = document.getElementById('invoice-amount').closest('.form-group') || document.getElementById('invoice-notes').closest('.form-group');
+                if(targetRow) {
+                    const div = document.createElement('div');
+                    div.className = 'form-group';
+                    div.style.marginTop = '12px';
+                    div.innerHTML = `<label style="font-weight:600; font-size:14px; margin-bottom:6px; display:block;">Initial Payment Flow Status</label>
+                                     <select id="invoice-status-select" class="form-control" style="width:100%; padding:10px; border-radius:6px; border:1px solid #ccc; background:#fff;">
+                                         <option value="Pending">Pending / Unpaid</option>
+                                         <option value="Received">Received / Paid Asset</option>
+                                     </select>`;
+                    targetRow.parentNode.insertBefore(div, targetRow.nextSibling);
+                    selectEl = document.getElementById('invoice-status-select');
                 }
             }
-        };
 
-        const Auth = {
-            toggleAuthView: (viewName) => {
-                document.getElementById('auth-layer').classList.remove('hidden');
-                if(viewName === 'login') {
-                    document.getElementById('login-card').classList.remove('hidden');
-                    document.getElementById('signup-card').classList.add('hidden');
-                } else {
-                    document.getElementById('login-card').classList.add('hidden');
-                    document.getElementById('signup-card').classList.remove('hidden');
-                }
-                lucide.createIcons();
-            },
-            handleSignup: (e) => {
-                e.preventDefault();
-                const form = document.getElementById('signup-form');
-                const name = document.getElementById('signup-name').value.trim();
-                const email = document.getElementById('signup-email').value.trim().toLowerCase();
-                const password = document.getElementById('signup-password').value;
-                if(password.length < 6) { return Toast.show("Password must reach 6 characters.", "error"); }
-                const users = DB.get('users');
-                if(users.some(u => u.email === email)) { return Toast.show("Email vector already exists.", "error"); }
-                Loading.start(form);
-                setTimeout(() => {
-                    const newUser = { id: 'usr_' + Date.now(), name, email, password, phone: '', svpPin: '', invoiceCounter: 0 };
-                    users.push(newUser); DB.set('users', users); DB.setActiveUser(newUser);
-                    Loading.stop(form); Toast.show("Identity registered.");
-                    form.reset(); window.location.hash = '#setup';
-                }, 1000);
-            },
-            handleLogin: (e) => {
-                e.preventDefault();
-                const form = document.getElementById('login-form');
-                const email = document.getElementById('login-email').value.trim().toLowerCase();
-                const password = document.getElementById('login-password').value;
-                const users = DB.get('users');
-                const match = users.find(u => u.email === email && u.password === password);
-                if(!match) { return Toast.show("Invalid tracking identifiers.", "error"); }
-                Loading.start(form);
-                setTimeout(() => {
-                    DB.setActiveUser(match); Loading.stop(form);
-                    Toast.show("Security authentication verified.");
-                    form.reset(); window.location.hash = match.svpPin ? '#dashboard' : '#setup';
-                }, 800);
-            },
-            logout: () => { DB.setActiveUser(null); Toast.show("Session purged safely."); window.location.hash = '#login'; }
-        };
-
-        const User = {
-            handleSetup: (e) => {
-                e.preventDefault();
-                const phone = document.getElementById('setup-phone').value.trim();
-                const pin = document.getElementById('setup-pin').value;
-                if(pin.length !== 4 || isNaN(pin)) { return Toast.show("SVP pins require exactly 4 digits.", "error"); }
-                const current = DB.getActiveUser(); current.phone = phone; current.svpPin = pin;
-                User.syncUserToDatabase(current); Toast.show("Parameters committed.");
-                window.location.hash = '#dashboard';
-            },
-            updateProfile: (e) => {
-                e.preventDefault();
-                const current = DB.getActiveUser();
-                current.name = document.getElementById('settings-name').value.trim();
-                current.phone = document.getElementById('settings-phone').value.trim();
-                User.syncUserToDatabase(current); Toast.show("Identity updated.");
-            },
-            updatePassword: (e) => {
-                e.preventDefault();
-                const pass = document.getElementById('settings-pass').value;
-                if(pass.length < 6) { return Toast.show("Requires 6 characters.", "error"); }
-                const current = DB.getActiveUser(); current.password = pass;
-                User.syncUserToDatabase(current); document.getElementById('settings-pass-form').reset();
-                Toast.show("Password updated.");
-            },
-            updatePin: (e) => {
-                e.preventDefault();
-                const pin = document.getElementById('settings-pin').value;
-                if(pin.length !== 4 || isNaN(pin)) { return Toast.show("Invalid PIN configuration format.", "error"); }
-                const current = DB.getActiveUser(); current.svpPin = pin;
-                User.syncUserToDatabase(current); document.getElementById('settings-pin-form').reset();
-                Toast.show("SVP security pin updated safely.");
-            },
-            syncUserToDatabase: (userObj) => {
-                DB.setActiveUser(userObj); const users = DB.get('users');
-                const index = users.findIndex(u => u.id === userObj.id);
-                if(index !== -1) { users[index] = userObj; DB.set('users', users); }
-            }
-        };
-
-        const SecurityEngine = {
-            pendingAction: null,
-            challengeSvp: (onSuccessAction) => {
-                SecurityEngine.pendingAction = onSuccessAction;
-                document.getElementById('svp-modal-input').value = '';
-                document.getElementById('svp-modal').classList.add('open');
-                document.getElementById('svp-modal-input').focus();
-            },
-            closeSvpModal: () => { document.getElementById('svp-modal').classList.remove('open'); SecurityEngine.pendingAction = null; },
-            submitSvpVerification: (e) => {
-                e.preventDefault();
-                const inputPin = document.getElementById('svp-modal-input').value;
-                if (inputPin === DB.getActiveUser().svpPin) {
-                    const actionToExecute = SecurityEngine.pendingAction; SecurityEngine.closeSvpModal();
-                    if(actionToExecute) actionToExecute();
-                } else { Toast.show("SVP Access rejected: Code Invalid.", "error"); }
-            }
-        };
-
-        const Invoice = {
-            activeDeleteId: null,
-            handleFormSubmit: (e) => { e.preventDefault(); SecurityEngine.challengeSvp(() => { Invoice.commitFormToStorage(); }); },
-            commitFormToStorage: () => {
-                const editId = document.getElementById('invoice-edit-id').value;
-                const title = document.getElementById('invoice-title').value.trim();
-                const clientName = document.getElementById('invoice-client-name').value.trim();
-                const clientEmail = document.getElementById('invoice-client-email').value.trim().toLowerCase();
-                const clientPhone = document.getElementById('invoice-client-phone').value.trim();
-                const date = document.getElementById('invoice-date').value;
-                const amount = parseFloat(document.getElementById('invoice-amount').value);
-                const notes = document.getElementById('invoice-notes').value.trim();
-                const user = DB.getActiveUser(); const invoices = DB.get('invoices');
-
-                if (editId) {
-                    const index = invoices.findIndex(inv => inv.id === editId && inv.userId === user.id);
-                    if (index !== -1) {
-                        invoices[index] = { ...invoices[index], title, clientName, clientEmail, clientPhone, date, amount, notes };
-                        DB.set('invoices', invoices); Toast.show("Changes saved.");
-                    }
-                } else {
-                    user.invoiceCounter += 1; const invoiceNumber = `IN-${String(user.invoiceCounter).padStart(2, '0')}`;
-                    const newInvoice = { id: 'inv_' + Date.now(), userId: user.id, invoiceNumber, title, clientName, clientEmail, clientPhone, date, amount, notes, createdAt: new Date().toISOString() };
-                    invoices.push(newInvoice); DB.set('invoices', invoices); User.syncUserToDatabase(user); 
-                    Toast.show(`Invoice minted code assigned: ${invoiceNumber}`);
-                }
-                document.getElementById('invoice-main-form').reset(); window.location.hash = '#invoices';
-            },
-            triggerDeleteConfirm: (id) => {
-                Invoice.activeDeleteId = id; document.getElementById('delete-modal').classList.add('open');
-                document.getElementById('delete-modal-confirm-btn').onclick = () => { Invoice.executePurge(Invoice.activeDeleteId); };
-            },
-            closeDeleteModal: () => { document.getElementById('delete-modal').classList.remove('open'); Invoice.activeDeleteId = null; },
-            executePurge: (id) => {
-                const user = DB.getActiveUser(); let invoices = DB.get('invoices');
-                invoices = invoices.filter(inv => !(inv.id === id && inv.userId === user.id));
-                DB.set('invoices', invoices); Invoice.closeDeleteModal(); Toast.show("Record entry purged safely.");
-                AppRouter.route(window.location.hash.split('?')[0]);
-            }
-        };
-
-        const DashboardView = {
-            render: () => {
-                const user = DB.getActiveUser(); const invoices = DB.get('invoices').filter(i => i.userId === user.id);
-                document.getElementById('welcome-heading').innerText = `Portal: ${user.name}`;
-                document.getElementById('metric-count').innerText = invoices.length;
-                const totalRev = invoices.reduce((acc, curr) => acc + curr.amount, 0);
-                document.getElementById('metric-revenue').innerText = `$${totalRev.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits:2})}`;
-                const sortedRecent = [...invoices].sort((a,b) => new Date(b.createdAt) - new Date(a.createdAt)).slice(0, 3);
-                const tbody = document.getElementById('dashboard-table-body'); tbody.innerHTML = '';
-                if(sortedRecent.length === 0) {
-                    tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; color:var(--text-muted); padding: 24px 0;">No asset logs initialized.</td></tr>`; return;
-                }
-                sortedRecent.forEach(inv => {
-                    const tr = document.createElement('tr');
-                    tr.innerHTML = `<td data-label="ID" style="font-weight:700; color:var(--brand-primary)">${inv.invoiceNumber}</td><td data-label="Client / Title"><div style="font-weight:700">${inv.title}</div><div style="font-size:12px; color:var(--text-muted); margin-top:2px;">${inv.clientName}</div></td><td data-label="Date">${inv.date}</td><td data-label="Amount" style="font-weight:700; color:var(--text-main)">$${inv.amount.toFixed(2)}</td><td data-label="Actions" class="actions-cell"><button class="btn-icon" onclick="window.location.hash='#invoice-detail?id=${inv.id}'"><i data-lucide="eye"></i></button></td>`;
-                    tbody.appendChild(tr);
-                });
-            }
-        };
-
-        const InvoicesListView = {
-            render: () => {
-                const user = DB.getActiveUser(); const invoices = DB.get('invoices').filter(i => i.userId === user.id);
-                const tbody = document.getElementById('invoices-table-body'); tbody.innerHTML = '';
-                if(invoices.length === 0) {
-                    tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; color:var(--text-muted); padding: 24px 0;">Zero records files inside logs.</td></tr>`; return;
-                }
-                invoices.forEach(inv => {
-                    const tr = document.createElement('tr');
-                    tr.innerHTML = `<td data-label="Invoice ID" style="font-weight:700; color:var(--brand-primary)">${inv.invoiceNumber}</td><td data-label="Title Name" style="font-weight:600">${inv.title}</td><td data-label="Client Target">${inv.clientName}</td><td data-label="Date">${inv.date}</td><td data-label="Valuation" style="font-weight:700; color:var(--text-main)">$${inv.amount.toFixed(2)}</td><td data-label="Actions" class="actions-cell"><button class="btn-icon" onclick="window.location.hash='#invoice-detail?id=${inv.id}'"><i data-lucide="eye"></i></button><button class="btn-icon" onclick="window.location.hash='#create-invoice?edit=${inv.id}'"><i data-lucide="edit-2"></i></button><button class="btn-icon danger" onclick="Invoice.triggerDeleteConfirm('${inv.id}')"><i data-lucide="trash-2"></i></button></td>`;
-                    tbody.appendChild(tr);
-                });
-            }
-        };
-
-        const InvoiceFormView = {
-            render: (hash) => {
-                const form = document.getElementById('invoice-main-form'); form.reset();
-                const urlParams = new URLSearchParams(hash.includes('?') ? hash.split('?')[1] : '');
-                const editId = urlParams.get('edit'); const user = DB.getActiveUser();
-                if (editId) {
-                    document.getElementById('invoice-form-dynamic-title').innerText = "Modification Mode Overrides Active";
-                    document.getElementById('invoice-submit-btn').innerText = "Authorize Record Changes";
-                    const match = DB.get('invoices').find(inv => inv.id === editId && inv.userId === user.id);
-                    if(match) {
-                        document.getElementById('invoice-edit-id').value = match.id;
-                        document.getElementById('invoice-auto-num').value = `${match.invoiceNumber} (Locked Base)`;
-                        document.getElementById('invoice-title').value = match.title;
-                        document.getElementById('invoice-client-name').value = match.clientName;
-                        document.getElementById('invoice-client-email').value = match.clientEmail;
-                        document.getElementById('invoice-client-phone').value = match.clientPhone;
-                        document.getElementById('invoice-date').value = match.date;
-                        document.getElementById('invoice-amount').value = match.amount;
-                        document.getElementById('invoice-notes').value = match.notes;
-                    }
-                } else {
-                    document.getElementById('invoice-form-dynamic-title').innerText = "Secure Billing Lifecycle Execution Engine";
-                    document.getElementById('invoice-submit-btn').innerText = "Authorize Transaction Execution Parameters";
-                    document.getElementById('invoice-edit-id').value = '';
-                    document.getElementById('invoice-auto-num').value = `IN-${String(user.invoiceCounter + 1).padStart(2, '0')} (Auto Sequence)`;
-                }
-            }
-        };
-
-        const SettingsView = {
-            render: () => {
-                const user = DB.getActiveUser();
-                document.getElementById('settings-name').value = user.name;
-                document.getElementById('settings-phone').value = user.phone || '';
-                document.getElementById('settings-pin').value = user.svpPin || '';
-            }
-        };
-
-        document.addEventListener("DOMContentLoaded", () => { AppRouter.init(); });
-    </script>
+            if (editId) {                    
+                document.getElementById('invoice-form-dynamic-title').innerText = "Modification Mode Overrides Active";                    
+                document.getElementById('invoice-submit-btn').innerText = "Authorize Record Changes";                    
+                const match = DB.get('invoices').find(inv => inv.id === editId && inv.userId === user.id);                    
+                if(match) {                        
+                    document.getElementById('invoice-edit-id').value = match.id;                        
+                    document.getElementById('invoice-auto-num').value = `${match.invoiceNumber} (Locked Base)`;                        
+                    document.getElementById('invoice-title').value = match.title;                        
+                    document.getElementById('invoice-client-name').value = match.clientName;                        
+                    document.getElementById('invoice-client-email').value = match.clientEmail;                        
+                    document.getElementById('invoice-client-phone').value = match.clientPhone;                        
+                    document.getElementById('invoice-date').value = match.date;                        
+                    document.getElementById('invoice-amount').value = match.amount;                        
+                    document.getElementById('invoice-notes').value = match.notes;                    
+                    if(selectEl) selectEl.value = match.status || 'Pending';
+                }                
+            } else {                    
+                document.getElementById('invoice-form-dynamic-title').innerText = "Secure Billing Lifecycle Execution Engine";                    
+                document.getElementById('invoice-submit-btn').innerText = "Authorize Transaction Execution Parameters";                    
+                document.getElementById('invoice-edit-id').value = '';                    
+                document.getElementById('invoice-auto-num').value = `IN-${String(user.invoiceCounter + 1).padStart(2, '0')} (Auto Sequence)`;                
+                if(selectEl) selectEl.value = 'Pending';
+            }            
+        }        
+    };
+    
+    const SettingsView = {            
+        render: () => {                
+            const user = DB.getActiveUser();                
+            document.getElementById('settings-name').value = user.name;                
+            document.getElementById('settings-phone').value = user.phone || '';                
+            document.getElementById('settings-pin').value = user.svpPin || '';            
+        }        
+    };
+    
+    document.addEventListener("DOMContentLoaded", () => { AppRouter.init(); });    
+</script>
 </body>
 </html>                                                     
