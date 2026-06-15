@@ -1,0 +1,906 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Invoicify — Premium Invoice SaaS</title>
+    
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+
+    <style>
+        :root {
+            --brand-primary: #4F46E5;
+            --brand-primary-hover: #4338CA;
+            --brand-success: #10B981;
+            --brand-danger: #EF4444;
+            --brand-warning: #F59E0B;
+            --bg-app: #F8FAFC;
+            --bg-surface: #FFFFFF;
+            --bg-sidebar: #0F172A;
+            --text-main: #0F172A;
+            --text-muted: #64748B;
+            --text-white: #FFFFFF;
+            --border-color: #E2E8F0;
+            --radius-sm: 8px;
+            --radius-md: 12px;
+            --radius-lg: 16px;
+            --shadow-sm: 0 1px 3px 0 rgb(0 0 0 / 0.1);
+            --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+            --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.05), 0 4px 6px -4px rgb(0 0 0 / 0.05);
+            --transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Plus Jakarta Sans', sans-serif; -webkit-font-smoothing: antialiased; }
+        body { background-color: var(--bg-app); color: var(--text-main); overflow-x: hidden; min-height: 100vh; }
+        .hidden { display: none !important; }
+        .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 12px 20px; font-size: 14px; font-weight: 600; border-radius: var(--radius-sm); border: none; cursor: pointer; transition: var(--transition); text-decoration: none; width: 100%; }
+        @media(min-width: 768px) { .btn { width: auto; } }
+        .btn-primary { background: var(--brand-primary); color: var(--text-white); }
+        .btn-primary:hover { background: var(--brand-primary-hover); }
+        .btn-secondary { background: var(--border-color); color: var(--text-main); }
+        .btn-secondary:hover { background: #CBD5E1; }
+        .btn-danger { background: var(--brand-danger); color: var(--text-white); }
+        .btn-danger:hover { opacity: 0.9; }
+
+        .input-group { margin-bottom: 16px; display: flex; flex-direction: column; gap: 6px; }
+        .input-group label { font-size: 13px; font-weight: 600; color: var(--text-main); }
+        .input-group input, .input-group textarea, .input-group select { padding: 12px 14px; font-size: 14px; border: 1px solid var(--border-color); border-radius: var(--radius-sm); background: var(--bg-surface); color: var(--text-main); outline: none; transition: var(--transition); width: 100%; }
+        .input-group input:focus, .input-group textarea:focus { border-color: var(--brand-primary); box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1); }
+        .input-group input[disabled] { background: #F1F5F9; cursor: not-allowed; }
+        .form-grid-2 { display: grid; grid-template-columns: 1fr; gap: 0; }
+        @media(min-width: 768px) { .form-grid-2 { grid-template-columns: 1fr 1fr; gap: 16px; } }
+
+        .invoicify-form-header { background: linear-gradient(135deg, var(--brand-primary) 0%, #1E1B4B 100%); padding: 28px 24px; border-radius: var(--radius-md) var(--radius-md) 0 0; color: white; display: flex; align-items: center; gap: 16px; border-bottom: 4px solid var(--brand-success); }
+        .invoicify-form-icon-box { background: rgba(255, 255, 255, 0.12); width: 54px; height: 54px; border-radius: var(--radius-md); display: flex; align-items: center; justify-content: center; border: 1px solid rgba(255, 255, 255, 0.2); box-shadow: var(--shadow-md); }
+        .invoicify-form-text-box h2 { font-size: 24px; font-weight: 800; letter-spacing: 0.5px; text-transform: uppercase; background: linear-gradient(135deg, #FFFFFF 0%, #C7D2FE 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        .invoicify-form-text-box p { font-size: 13px; opacity: 0.85; margin-top: 2px; }
+
+        #toast-container { position: fixed; top: 16px; left: 16px; right: 16px; z-index: 9999; display: flex; flex-direction: column; gap: 8px; }
+        @media(min-width: 768px) { #toast-container { left: auto; right: 24px; top: 24px; width: 350px; } }
+        .toast { background: var(--bg-surface); padding: 14px 16px; border-radius: var(--radius-md); box-shadow: var(--shadow-lg); display: flex; align-items: center; gap: 12px; font-size: 14px; font-weight: 500; border-left: 4px solid var(--brand-primary); animation: slideIn 0.3s ease forwards; }
+        .toast.success { border-left-color: var(--brand-success); }
+        .toast.error { border-left-color: var(--brand-danger); }
+        @keyframes slideIn { from { transform: translateY(-20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+
+        .auth-container { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 16px; background: linear-gradient(135deg, #EEF2F6 0%, #E2E8F0 100%); }
+        .auth-card { background: var(--bg-surface); padding: 24px; border-radius: var(--radius-lg); box-shadow: var(--shadow-lg); width: 100%; max-width: 440px; }
+        @media(min-width: 768px) { .auth-card { padding: 40px; } }
+        .auth-header { text-align: center; margin-bottom: 24px; }
+        .auth-header h2 { font-size: 22px; font-weight: 700; color: var(--text-main); }
+        .auth-header p { font-size: 14px; color: var(--text-muted); margin-top: 4px; }
+        .auth-footer { text-align: center; margin-top: 20px; font-size: 14px; color: var(--text-muted); }
+        .auth-footer a { color: var(--brand-primary); text-decoration: none; font-weight: 600; }
+
+        .app-layout { display: flex; flex-direction: column; min-height: 100vh; }
+        @media(min-width: 1024px) { .app-layout { flex-direction: row; } }
+        .sidebar { display: none; }
+        @media(min-width: 1024px) {
+            .sidebar { display: flex; width: 280px; min-width: 280px; background: var(--bg-sidebar); color: var(--text-white); flex-direction: column; justify-content: space-between; padding: 32px 24px; height: 100vh; position: sticky; top: 0; }
+        }
+        .sidebar-brand { display: flex; align-items: center; gap: 12px; font-size: 22px; font-weight: 700; margin-bottom: 40px; }
+        .sidebar-menu { display: flex; flex-direction: column; gap: 8px; list-style: none; flex-grow: 1; }
+        .sidebar-link { display: flex; align-items: center; gap: 12px; padding: 14px; color: #94A3B8; text-decoration: none; font-weight: 500; font-size: 15px; border-radius: var(--radius-sm); transition: var(--transition); }
+        .sidebar-link:hover, .sidebar-link.active { background: rgba(255, 255, 255, 0.06); color: var(--text-white); }
+        .sidebar-user { border-top: 1px solid rgba(255, 255, 255, 0.1); padding-top: 20px; display: flex; align-items: center; justify-content: space-between; }
+        .user-info h4 { font-size: 14px; font-weight: 600; color: var(--text-white); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 160px;}
+        .user-info p { font-size: 12px; color: #94A3B8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 160px;}
+        .logout-btn { background: transparent; border: none; color: #94A3B8; cursor: pointer; transition: var(--transition); }
+        .logout-btn:hover { color: var(--brand-danger); }
+
+        .mobile-header { display: flex; align-items: center; justify-content: space-between; background: var(--bg-sidebar); color: var(--text-white); padding: 16px; position: sticky; top: 0; z-index: 800; box-shadow: var(--shadow-md); }
+        @media(min-width: 1024px) { .mobile-header { display: none; } }
+
+        .bottom-nav { display: flex; position: fixed; bottom: 0; left: 0; right: 0; background: var(--bg-surface); border-top: 1px solid var(--border-color); height: 68px; justify-content: space-around; align-items: center; z-index: 900; box-shadow: 0 -4px 12px rgba(0,0,0,0.05); padding-bottom: env(safe-area-inset-bottom); }
+        @media(min-width: 1024px) { .bottom-nav { display: none; } }
+        .bottom-nav-link { display: flex; flex-direction: column; align-items: center; font-size: 11px; color: var(--text-muted); text-decoration: none; font-weight: 600; gap: 4px; flex: 1; justify-content: center; height: 100%; }
+        .bottom-nav-link.active { color: var(--brand-primary); }
+
+        .main-content { flex-grow: 1; padding: 20px 16px 100px 16px; width: 100%; }
+        @media(min-width: 768px) { .main-content { padding: 40px; } }
+        @media(min-width: 1024px) { .main-content { height: 100vh; overflow-y: auto; padding: 50px 60px; } }
+        
+        .view-header { display: flex; flex-direction: column; gap: 16px; margin-bottom: 24px; align-items: flex-start; }
+        @media(min-width: 768px) { .view-header { flex-direction: row; align-items: center; justify-content: space-between; margin-bottom: 36px; } }
+        .view-title h1 { font-size: 24px; font-weight: 700; color: var(--text-main); letter-spacing: -0.5px; }
+        .view-title p { font-size: 14px; color: var(--text-muted); margin-top: 4px; }
+
+        .metrics-grid { display: grid; grid-template-columns: 1fr; gap: 16px; margin-bottom: 24px; }
+        @media(min-width: 640px) { .metrics-grid { grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 24px; margin-bottom: 32px; } }
+        .card { background: var(--bg-surface); border-radius: var(--radius-md); padding: 20px; box-shadow: var(--shadow-sm); border: 1px solid var(--border-color); width: 100%; }
+        @media(min-width: 768px) { .card { padding: 28px; } }
+        .metric-card { display: flex; align-items: center; justify-content: space-between; }
+        .metric-details p { font-size: 13px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; }
+        .metric-details h3 { font-size: 26px; font-weight: 700; margin-top: 6px; color: var(--text-main); }
+        .metric-icon { width: 48px; height: 48px; border-radius: var(--radius-sm); display: flex; align-items: center; justify-content: center; }
+        .metric-icon.blue { background: rgba(79, 70, 229, 0.08); color: var(--brand-primary); }
+        .metric-icon.green { background: rgba(16, 185, 129, 0.08); color: var(--brand-success); }
+
+        .table-container { width: 100%; margin-top: 4px; }
+        @media(max-width: 767px) {
+            table, thead, tbody, th, td, tr { display: block; width: 100%; }
+            thead { display: none; }
+            tr { background: var(--bg-app); border: 1px solid var(--border-color); border-radius: var(--radius-md); padding: 16px; margin-bottom: 16px; position: relative; }
+            td { text-align: right; padding: 8px 0; font-size: 14px; border: none; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px dashed #E2E8F0; }
+            td:last-of-type { border-bottom: none; padding-top: 12px; }
+            td::before { content: attr(data-label); font-weight: 700; color: var(--text-muted); font-size: 12px; text-transform: uppercase; float: left; }
+            .actions-cell { justify-content: flex-end; width: 100%; }
+        }
+        @media(min-width: 768px) {
+            table { width: 100%; border-collapse: collapse; text-align: left; }
+            th { padding: 14px 16px; font-size: 13px; font-weight: 600; color: var(--text-muted); border-bottom: 1px solid var(--border-color); background: #F8FAFC; }
+            td { padding: 16px; font-size: 14px; color: var(--text-main); border-bottom: 1px solid var(--border-color); }
+            tr:last-child td { border-bottom: none; }
+            .actions-cell { display: flex; gap: 8px; }
+        }
+        
+        .btn-icon { background: transparent; border: none; cursor: pointer; color: var(--text-muted); padding: 8px; border-radius: var(--radius-sm); transition: var(--transition); display: inline-flex; align-items: center; justify-content: center; border: 1px solid var(--border-color); }
+        .btn-icon:hover { color: var(--brand-primary); background: #F1F5F9; border-color: #CBD5E1;}
+        .btn-icon.danger:hover { color: var(--brand-danger); background: #FEF2F2; border-color: #FCA5A5;}
+
+        .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(15, 23, 42, 0.6); backdrop-filter: blur(4px); z-index: 2000; display: flex; align-items: center; justify-content: center; padding: 16px; opacity: 0; pointer-events: none; transition: opacity 0.2s ease; }
+        .modal-overlay.open { opacity: 1; pointer-events: auto; }
+        .modal { background: var(--bg-surface); border-radius: var(--radius-lg); width: 100%; max-width: 420px; padding: 24px; box-shadow: var(--shadow-lg); transform: scale(0.95); transition: transform 0.2s ease; }
+        @media(min-width: 768px) { .modal { padding: 32px; } }
+        .modal-overlay.open .modal { transform: scale(1); }
+        .modal-title { font-size: 18px; font-weight: 700; margin-bottom: 8px; color: var(--text-main); }
+        .modal-desc { font-size: 14px; color: var(--text-muted); margin-bottom: 20px; line-height: 1.5; }
+        .modal-actions { display: flex; flex-direction: column-reverse; gap: 12px; margin-top: 24px; }
+        @media(min-width: 480px) { .modal-actions { flex-direction: row; justify-content: flex-end; } }
+
+        /* Modified: Printable container for fixing resolution drops */
+        .invoice-print-container { width: 100%; overflow-x: auto; padding: 4px; }
+        .invoice-paper { background: var(--bg-surface); padding: 30px; border-radius: var(--radius-md); box-shadow: var(--shadow-md); border: 1px solid var(--border-color); min-width: 650px; margin: 0 auto; }
+        .detail-grid { display: grid; grid-template-columns: 1fr; gap: 24px; align-items: start; }
+        @media(min-width: 1140px) { .detail-grid { grid-template-columns: 3fr 1fr; gap: 32px; } }
+        .paper-header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid var(--border-color); padding-bottom: 24px; margin-bottom: 24px; }
+        .paper-meta h2 { font-size: 26px; color: var(--brand-primary); font-weight: 700; }
+        .paper-meta p { font-size: 14px; color: var(--text-muted); margin-top: 4px; }
+        .paper-parties { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 32px; }
+        .party-block h5 { font-size: 11px; text-transform: uppercase; color: var(--text-muted); margin-bottom: 8px; letter-spacing: 0.5px;}
+        .party-block p { font-size: 14px; font-weight: 500; line-height: 1.5; color: var(--text-main); }
+        .paper-notes { margin-top: 32px; padding-top: 20px; border-top: 1px dashed var(--border-color); }
+        .paper-notes h5 { font-size: 11px; color: var(--text-muted); margin-bottom: 6px; text-transform: uppercase;}
+        .paper-notes p { font-size: 14px; font-style: italic; color: #475569; line-height: 1.5; }
+        .detail-actions-wrapper { display: flex; flex-direction: column; gap: 12px; width: 100%; }
+        @media(min-width: 640px) { .detail-actions-wrapper { flex-direction: row; } }
+        @media(min-width: 1140px) { .detail-actions-wrapper { flex-direction: column; } }
+        .loading-spinner { display: inline-block; width: 18px; height: 18px; border: 2px solid rgba(255,255,255,0.3); border-radius: 50%; border-top-color: #fff; animation: spin 0.8s linear infinite; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+    </style>
+</head>
+<body>
+
+    <div id="toast-container"></div>
+
+    <div id="auth-layer" class="auth-container hidden">
+        <div id="login-card" class="auth-card hidden">
+            <div class="auth-header">
+                <h2>Welcome Back</h2>
+                <p>Sign in to manage your digital ledgers</p>
+            </div>
+            <form id="login-form" onsubmit="Auth.handleLogin(event)">
+                <div class="input-group">
+                    <label>Email Address</label>
+                    <input type="email" id="login-email" required placeholder="name@company.com">
+                </div>
+                <div class="input-group">
+                    <label>Password</label>
+                    <input type="password" id="login-password" required placeholder="••••••••">
+                </div>
+                <button type="submit" class="btn btn-primary" style="margin-top: 8px;">
+                    <span class="btn-text">Sign In</span>
+                </button>
+            </form>
+            <div class="auth-footer">
+                Don't have an account? <a href="#signup" onclick="Auth.toggleAuthView('signup')">Create one</a>
+            </div>
+        </div>
+
+        <div id="signup-card" class="auth-card hidden">
+            <div class="auth-header">
+                <h2>Create Account</h2>
+                <p>Get started with enterprise invoicing today</p>
+            </div>
+            <form id="signup-form" onsubmit="Auth.handleSignup(event)">
+                <div class="input-group">
+                    <label>Full Name</label>
+                    <input type="text" id="signup-name" required placeholder="John Doe">
+                </div>
+                <div class="input-group">
+                    <label>Email Address</label>
+                    <input type="email" id="signup-email" required placeholder="john@example.com">
+                </div>
+                <div class="input-group">
+                    <label>Password</label>
+                    <input type="password" id="signup-password" required placeholder="Minimum 6 characters">
+                </div>
+                <button type="submit" class="btn btn-primary" style="margin-top: 8px;">
+                    <span class="btn-text">Register</span>
+                </button>
+            </form>
+            <div class="auth-footer">
+                Already registered? <a href="#login" onclick="Auth.toggleAuthView('login')">Sign In</a>
+            </div>
+        </div>
+    </div>
+
+    <div id="app-layer" class="app-layout hidden">
+        <header class="mobile-header">
+            <div style="display: flex; align-items: center; gap: 10px;">
+                <i data-lucide="wallet" style="color: #818CF8"></i>
+                <span style="font-weight:700; font-size:18px; letter-spacing: -0.5px;">Invoicify</span>
+            </div>
+            <button class="logout-btn" onclick="Auth.logout()" title="Logout Session" style="color:#F8FAFC">
+                <i data-lucide="log-out" style="width:20px; height:20px;"></i>
+            </button>
+        </header>
+
+        <aside class="sidebar">
+            <div>
+                <div class="sidebar-brand">
+                    <i data-lucide="wallet" style="color: #818CF8; width: 28px; height: 28px;"></i>
+                    <span>Invoicify</span>
+                </div>
+                <nav class="sidebar-menu">
+                    <a href="#dashboard" class="sidebar-link" id="nav-dashboard"><i data-lucide="layout-dashboard"></i> Dashboard</a>
+                    <a href="#invoices" class="sidebar-link" id="nav-invoices"><i data-lucide="file-text"></i> Invoices</a>
+                    <a href="#create-invoice" class="sidebar-link" id="nav-create-invoice"><i data-lucide="plus-circle"></i> New Invoice</a>
+                    <a href="#settings" class="sidebar-link" id="nav-settings"><i data-lucide="settings"></i> Settings</a>
+                </nav>
+            </div>
+            <div class="sidebar-user">
+                <div class="user-info">
+                    <h4 id="user-display-name">Loading Profile...</h4>
+                    <p id="user-display-email">...</p>
+                </div>
+                <button class="logout-btn" onclick="Auth.logout()" title="Logout Session"><i data-lucide="log-out"></i></button>
+            </div>
+        </aside>
+
+        <nav class="bottom-nav">
+            <a href="#dashboard" class="bottom-nav-link" id="bnav-dashboard"><i data-lucide="layout-dashboard" style="width:20px; height:20px;"></i>Dash</a>
+            <a href="#invoices" class="bottom-nav-link" id="bnav-invoices"><i data-lucide="file-text" style="width:20px; height:20px;"></i>Invoices</a>
+            <a href="#create-invoice" class="bottom-nav-link" id="bnav-create-invoice"><i data-lucide="plus-circle" style="width:20px; height:20px;"></i>New</a>
+            <a href="#settings" class="bottom-nav-link" id="bnav-settings"><i data-lucide="settings" style="width:20px; height:20px;"></i>Settings</a>
+        </nav>
+
+        <main class="main-content">
+            <div id="view-setup" class="view-panel hidden">
+                <div class="view-header">
+                    <div class="view-title">
+                        <h1>Security Onboarding</h1>
+                        <p>Configure security profiles and tokens to activate live invoice execution authorizations.</p>
+                    </div>
+                </div>
+                <div class="card" style="max-width: 500px;">
+                    <form id="setup-form" onsubmit="User.handleSetup(event)">
+                        <div class="input-group">
+                            <label>Phone Number</label>
+                            <input type="tel" id="setup-phone" required placeholder="+92 300 1234567">
+                        </div>
+                        <div class="input-group">
+                            <label>Secure SVP PIN Vector (4-Digit Code)</label>
+                            <input type="password" id="setup-pin" maxlength="4" pattern="\d{4}" required placeholder="••••">
+                        </div>
+                        <button type="submit" class="btn btn-primary" style="margin-top: 12px;">Initialize Security Access</button>
+                    </form>
+                </div>
+            </div>
+
+            <div id="view-dashboard" class="view-panel hidden">
+                <div class="view-header">
+                    <div class="view-title">
+                        <h1 id="welcome-heading">Welcome Back!</h1>
+                        <p>Operational summary snapshot metrics profile metrics.</p>
+                    </div>
+                    <a href="#create-invoice" class="btn btn-primary"><i data-lucide="plus"></i> New Invoice</a>
+                </div>
+                
+                <div class="metrics-grid">
+                    <div class="card metric-card">
+                        <div class="metric-details"><p>Aggregated Invoices</p><h3 id="metric-count">0</h3></div>
+                        <div class="metric-icon blue"><i data-lucide="layers"></i></div>
+                    </div>
+                    <div class="card metric-card">
+                        <div class="metric-details"><p>Total Revenue Pipeline</p><h3 id="metric-revenue">$0.00</h3></div>
+                        <div class="metric-icon green"><i data-lucide="dollar-sign"></i></div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <h3 style="margin-bottom: 20px; font-size: 16px; font-weight: 700; letter-spacing:-0.3px;">Recent Transaction Records</h3>
+                    <div class="table-container">
+                        <table id="dashboard-table">
+                            <thead><tr><th>ID</th><th>Client / Title</th><th>Date</th><th>Amount</th><th>Actions</th></tr></thead>
+                            <tbody id="dashboard-table-body"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <div id="view-invoices" class="view-panel hidden">
+                <div class="view-header">
+                    <div class="view-title">
+                        <h1>Invoices Ledger</h1>
+                        <p>Complete structural transaction ledger and historic timeline log.</p>
+                    </div>
+                    <a href="#create-invoice" class="btn btn-primary"><i data-lucide="plus"></i> New Invoice</a>
+                </div>
+                <div class="card">
+                    <div class="table-container">
+                        <table id="ledger-table">
+                            <thead><tr><th>Invoice ID</th><th>Title Name</th><th>Client Target</th><th>Date</th><th>Valuation</th><th>Actions</th></tr></thead>
+                            <tbody id="invoices-table-body"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <div id="view-create-invoice" class="view-panel hidden">
+                <div class="view-header">
+                    <div class="view-title">
+                        <h1>Billing Module Engine</h1>
+                        <p>Populate core allocation vectors to secure a verified database balance block tracking item.</p>
+                    </div>
+                </div>
+                <div class="card" style="max-width: 760px; padding: 0; border-radius: var(--radius-md); overflow: hidden; box-shadow: var(--shadow-lg);">
+                    <div class="invoicify-form-header">
+                        <div class="invoicify-form-icon-box"><i data-lucide="wallet" style="width: 28px; height: 28px; color: #818CF8;"></i></div>
+                        <div class="invoicify-form-text-box"><h2>Invoicify</h2><p id="invoice-form-dynamic-title">Secure Billing Lifecycle Execution Engine</p></div>
+                    </div>
+
+                    <form id="invoice-main-form" onsubmit="Invoice.handleFormSubmit(event)" style="padding: 28px; padding-top: 20px;">
+                        <input type="hidden" id="invoice-edit-id">
+                        <div class="input-group">
+                            <label>Invoice Number Reference</label>
+                            <input type="text" id="invoice-auto-num" disabled value="[AUTO-GENERATED]">
+                        </div>
+                        <div class="input-group">
+                            <label>Invoice Context Title</label>
+                            <input type="text" id="invoice-title" required placeholder="e.g., Cloud Consulting Services">
+                        </div>
+                        <div class="form-grid-2">
+                            <div class="input-group"><label>Client Executive Name</label><input type="text" id="invoice-client-name" required placeholder="Acme Corp Officer"></div>
+                            <div class="input-group"><label>Client Target Email</label><input type="email" id="invoice-client-email" required placeholder="finance@acme.com"></div>
+                        </div>
+                        <div class="form-grid-2">
+                            <div class="input-group"><label>Client Contact Number</label><input type="tel" id="invoice-client-phone" required placeholder="e.g., 923001234567"></div>
+                            <div class="input-group"><label>Due Processing Date</label><input type="date" id="invoice-date" required></div>
+                        </div>
+                        <div class="input-group">
+                            <label>Total Remittance Allocation Amount ($)</label>
+                            <input type="number" step="0.01" min="0.01" id="invoice-amount" required placeholder="0.00">
+                        </div>
+                        <div class="input-group">
+                            <label>Explicit Terms & Scope Notes Description Block</label>
+                            <textarea id="invoice-notes" rows="4" placeholder="Enter structured scope agreements..."></textarea>
+                        </div>
+                        <div style="display:flex; flex-direction: column; gap:12px; margin-top:24px;">
+                            <button type="submit" class="btn btn-primary" id="invoice-submit-btn">Authorise Transaction Execution</button>
+                            <a href="#invoices" class="btn btn-secondary" style="text-align:center">Abort Setup</a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <div id="view-invoice-detail" class="view-panel hidden">
+                <div class="view-header">
+                    <div class="view-title">
+                        <h1 id="detail-view-title">Invoice Processing Pipeline</h1>
+                        <p>Review metrics, download PDF, export logs or dispatch communication layers elements links strings.</p>
+                    </div>
+                </div>
+
+                <div class="detail-grid">
+                    <div class="invoice-print-container" id="print-area-wrapper">
+                        <div class="invoice-paper" id="invoice-paper-printable">
+                            <div class="paper-header">
+                                <div class="paper-meta"><h2 id="paper-invoice-num">IN-XX</h2><p id="paper-invoice-title">Consulting Operations Deployment</p></div>
+                                <div style="text-align: right;">
+                                    <h3 style="font-size: 16px; font-weight:700; color: var(--brand-primary); display: flex; align-items: center; justify-content: flex-end; gap: 6px;"><i data-lucide="wallet" style="width: 18px; height: 18px;"></i> Invoicify Issuer</h3>
+                                    <p style="font-size: 13px; color:var(--text-muted); margin-top: 4px;" id="paper-user-email">issuer@net.com</p>
+                                    <p style="font-size: 13px; color:var(--text-muted);" id="paper-user-phone">000-000</p>
+                                </div>
+                            </div>
+                            <div class="paper-parties">
+                                <div class="party-block">
+                                    <h5>Remit Payment Target</h5>
+                                    <p id="paper-client-name">Client Enterprise Entity</p>
+                                    <p id="paper-client-email">client@target.com</p>
+                                    <p id="paper-client-phone">000-000</p>
+                                </div>
+                                <div class="party-block" style="text-align: right;"><h5>Maturity Horizon Date</h5><p style="font-size:16px; font-weight:700; color:var(--brand-primary);" id="paper-invoice-date">2026-01-01</p></div>
+                            </div>
+                            <div style="border-top:2px solid var(--border-color); border-bottom:2px solid var(--border-color); padding: 16px 0; margin: 24px 0; display:flex; justify-content:space-between; align-items:center;">
+                                <div><h5>Item Core Framework Scope Block</h5><strong id="paper-table-desc">Service Track Execution Itemization</strong></div>
+                                <div style="text-align:right"><h5>Total Balance Due</h5><strong id="paper-table-amount">$0.00</strong></div>
+                            </div>
+                            <div class="paper-notes"><h5>Legal Underwriting Notes & Terms</h5><p id="paper-invoice-notes">No modifications structural applicable.</p></div>
+                        </div>
+                    </div>
+                    <div class="detail-actions-wrapper">
+                        <button class="btn btn-secondary" onclick="PDFEngine.downloadPDF()"><i data-lucide="download"></i> Download Premium PDF</button>
+                        <button class="btn btn-primary" id="share-wa-btn" style="background:#25D366; color:white;"><i data-lucide="message-square"></i> WhatsApp Share</button>
+                        <button class="btn btn-primary" id="share-mail-btn" style="background:#2563EB"><i data-lucide="mail"></i> Email Dispatch</button>
+                    </div>
+                </div>
+            </div>
+
+            <div id="view-settings" class="view-panel hidden">
+                <div class="view-header"><div class="view-title"><h1>Account Control Dashboard</h1><p>Modify secure credentials metrics signatures.</p></div></div>
+                <div style="display:flex; flex-direction:column; gap:24px; max-width:600px;">
+                    <div class="card">
+                        <h3 style="font-size:16px; margin-bottom:16px; font-weight:700;">Identity Framework details</h3>
+                        <form id="settings-profile-form" onsubmit="User.updateProfile(event)">
+                            <div class="input-group"><label>Profile Real Name String</label><input type="text" id="settings-name" required></div>
+                            <div class="input-group"><label>Phone Access Track Line</label><input type="tel" id="settings-phone" required></div>
+                            <button type="submit" class="btn btn-primary">Rewrite Identity Core</button>
+                        </form>
+                    </div>
+                    <div class="card">
+                        <h3 style="font-size:16px; margin-bottom:16px; font-weight:700;">Modify Core Password</h3>
+                        <form id="settings-pass-form" onsubmit="User.updatePassword(event)">
+                            <div class="input-group"><label>Target Password String Token</label><input type="password" id="settings-pass" required placeholder="Minimum 6 characters"></div>
+                            <button type="submit" class="btn btn-primary">Rewrite Security Secret</button>
+                        </form>
+                    </div>
+                    <div class="card">
+                        <h3 style="font-size:16px; margin-bottom:16px; font-weight:700;">Modify Verification SVP PIN</h3>
+                        <form id="settings-pin-form" onsubmit="User.updatePin(event)">
+                            <div class="input-group"><label>Secure SVP Gateway Access Pin (4 Digit)</label><input type="password" id="settings-pin" maxlength="4" pattern="\d{4}" required placeholder="••••"></div>
+                            <button type="submit" class="btn btn-primary">Rewrite Secure Vector</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <div id="svp-modal" class="modal-overlay">
+        <div class="modal">
+            <h3 class="modal-title">Authorize Access Vector</h3>
+            <p class="modal-desc">High-value payload transaction change sequences require validation verification.</p>
+            <form id="svp-modal-form" onsubmit="SecurityEngine.submitSvpVerification(event)">
+                <div class="input-group">
+                    <label>SVP Access Verification Key Code Pin</label>
+                    <input type="password" id="svp-modal-input" maxlength="4" pattern="\d{4}" required placeholder="••••" style="text-align: center; letter-spacing: 8px; font-size:20px;">
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-secondary" onclick="SecurityEngine.closeSvpModal()">Abort Request</button>
+                    <button type="submit" class="btn btn-primary">Pass Validation Check</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div id="delete-modal" class="modal-overlay">
+        <div class="modal">
+            <h3 class="modal-title" style="color:var(--brand-danger)">Purge Data Mutation Block</h3>
+            <p class="modal-desc">Are you completely certain? Purging this structural transaction database tracking record cannot be reversed.</p>
+            <div class="modal-actions">
+                <button type="button" class="btn btn-secondary" onclick="Invoice.closeDeleteModal()">Abort Operations</button>
+                <button type="button" class="btn btn-danger" id="delete-modal-confirm-btn">Purge Entry Record</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const DB = {
+            get: (key) => JSON.parse(localStorage.getItem(`invoice_saas_${key}`)) || [],
+            set: (key, data) => localStorage.setItem(`invoice_saas_${key}`, JSON.stringify(data)),
+            getActiveUser: () => JSON.parse(sessionStorage.getItem('invoice_saas_session')),
+            setActiveUser: (userObj) => {
+                if (userObj) { sessionStorage.setItem('invoice_saas_session', JSON.stringify(userObj)); } 
+                else { sessionStorage.removeItem('invoice_saas_session'); }
+            }
+        };
+
+        const Toast = {
+            show: (message, type = 'success') => {
+                const container = document.getElementById('toast-container');
+                const toast = document.createElement('div');
+                toast.className = `toast ${type}`;
+                let iconName = type === 'success' ? 'check-circle' : 'alert-circle';
+                toast.innerHTML = `<i data-lucide="${iconName}"></i> <span>${message}</span>`;
+                container.appendChild(toast);
+                lucide.createIcons();
+                setTimeout(() => {
+                    toast.style.opacity = '0';
+                    toast.style.transform = 'translateY(-10px)';
+                    toast.style.transition = 'all 0.25s ease';
+                    setTimeout(() => toast.remove(), 250);
+                }, 3000);
+            }
+        };
+
+        const Loading = {
+            start: (formElement) => {
+                const btn = formElement.querySelector('button[type="submit"]');
+                if (!btn) return;
+                btn.disabled = true;
+                btn.dataset.originalText = btn.innerHTML;
+                btn.innerHTML = `<span class="loading-spinner"></span>`;
+            },
+            stop: (formElement) => {
+                const btn = formElement.querySelector('button[type="submit"]');
+                if (!btn || !btn.dataset.originalText) return;
+                btn.disabled = false;
+                btn.innerHTML = btn.dataset.originalText;
+            }
+        };
+
+        /* 🛠️ FIXED: PREMIUM PDF GENERATOR ENGINE (No Clipping anymore) */
+       /* 🛠️ ENHANCED: PERFECT A4 SIZE PDF GENERATOR ENGINE */
+        const PDFEngine = {
+            downloadPDF: () => {
+                const element = document.getElementById('invoice-paper-printable');
+                const invNum = document.getElementById('paper-invoice-num').innerText;
+                Toast.show("Generating Proper A4 PDF Vector...");
+                
+                // Invoice container ki styling ko backup karein
+                const originalStyleWidth = element.style.width;
+                const originalStyleMinWidth = element.style.minWidth;
+                const originalPadding = element.style.padding;
+
+                // Standard A4 dimensions pixel scaling aur crisp view fix
+                element.style.width = '794px'; 
+                element.style.minWidth = '794px';
+                element.style.padding = '40px'; 
+
+                const options = {
+                    margin:       0, // Page margins zero rakhein kyunki styling padding sambhal legi
+                    filename:     `Invoice_${invNum}.pdf`,
+                    image:        { type: 'jpeg', quality: 1.0 }, // Maximum quality
+                    html2canvas:  { 
+                        scale: 2, // High resolution crisp text ke liye
+                        useCORS: true, 
+                        logging: false,
+                        letterRendering: true
+                    },
+                    jsPDF:        { unit: 'px', format: 'a4', orientation: 'portrait', hotfixes: ['px_scaling'] }
+                };
+
+                // PDF save karne ke baad original web styling wapis restore karein
+                html2pdf().set(options).from(element).save().then(() => {
+                    element.style.width = originalStyleWidth;
+                    element.style.minWidth = originalStyleMinWidth;
+                    element.style.padding = originalPadding;
+                });
+            }
+        };
+
+        /* 🛠️ FIXED: STABLE WHATSAPP FALLBACK DISPATCH SYSTEM */
+        const InvoiceDetailView = {
+            render: (hash) => {
+                const urlParams = new URLSearchParams(hash.includes('?') ? hash.split('?')[1] : '');
+                const id = urlParams.get('id'); const user = DB.getActiveUser();
+                const match = DB.get('invoices').find(inv => inv.id === id && inv.userId === user.id);
+                if (!match) { Toast.show("Target database asset validation execution error.", "error"); window.location.hash = '#invoices'; return; }
+
+                document.getElementById('paper-invoice-num').innerText = match.invoiceNumber;
+                document.getElementById('paper-invoice-title').innerText = match.title;
+                document.getElementById('paper-user-email').innerText = user.email;
+                document.getElementById('paper-user-phone').innerText = user.phone || 'No Phone Signature';
+                document.getElementById('paper-client-name').innerText = match.clientName;
+                document.getElementById('paper-client-email').innerText = match.clientEmail;
+                document.getElementById('paper-client-phone').innerText = match.clientPhone;
+                document.getElementById('paper-invoice-date').innerText = match.date;
+                document.getElementById('paper-table-desc').innerText = match.title;
+                document.getElementById('paper-table-amount').innerText = `$${match.amount.toFixed(2)}`;
+                document.getElementById('paper-invoice-notes').innerText = match.notes || 'No custom underwriting terms specified.';
+
+                // Remake notification message body safely
+                const cleanPhone = match.clientPhone.replace(/\D/g, ''); // Removes spaces or '+'
+                const msgText = `Hello ${match.clientName}, Please find your Invoice ${match.invoiceNumber} for Amount $${match.amount.toFixed(2)}. Due Date: ${match.date}.`;
+
+                // WhatsApp Event Handler
+                document.getElementById('share-wa-btn').onclick = async () => {
+                    Toast.show("Processing Dispatch Protocols...");
+                    const paperElement = document.getElementById('invoice-paper-printable');
+                    
+                    try {
+                        // Safe checking if advanced file sharing is supported on secure server
+                        if (navigator.canShare && navigator.share) {
+                            const canvas = await html2canvas(paperElement, { scale: 2, useCORS: true });
+                            canvas.toBlob(async (blob) => {
+                                if (blob) {
+                                    const file = new File([blob], `Invoice_${match.invoiceNumber}.jpg`, { type: "image/jpeg" });
+                                    await navigator.share({
+                                        files: [file],
+                                        title: `Invoice ${match.invoiceNumber}`,
+                                        text: msgText
+                                    });
+                                }
+                            }, 'image/jpeg');
+                        } else {
+                            // Perfect absolute URL text redirection fallback for Mobile/PC apps
+                            window.open(`https://api.whatsapp.com/send?phone=${cleanPhone}&text=${encodeURIComponent(msgText)}`, '_blank');
+                        }
+                    } catch (err) {
+                        // Emergency system fallback direct hook
+                        window.open(`https://api.whatsapp.com/send?phone=${cleanPhone}&text=${encodeURIComponent(msgText)}`, '_blank');
+                    }
+                };
+
+                // Mail Event Handler
+                document.getElementById('share-mail-btn').onclick = () => {
+                    window.location.href = `mailto:${match.clientEmail}?subject=${encodeURIComponent('Invoice Records ' + match.invoiceNumber)}&body=${encodeURIComponent(msgText)}`;
+                };
+            }
+        };
+
+        const AppRouter = {
+            routes: ['dashboard', 'invoices', 'create-invoice', 'settings', 'invoice-detail', 'setup'],
+            init: () => {
+                window.addEventListener('hashchange', () => AppRouter.route(window.location.hash));
+                AppRouter.route(window.location.hash);
+            },
+            route: (hash) => {
+                const activeUser = DB.getActiveUser();
+                if (!activeUser) {
+                    document.getElementById('app-layer').classList.add('hidden');
+                    document.getElementById('auth-layer').classList.remove('hidden');
+                    if (hash === '#signup') { Auth.toggleAuthView('signup'); } else { window.location.hash = '#login'; Auth.toggleAuthView('login'); }
+                    return;
+                }
+                document.getElementById('auth-layer').classList.add('hidden');
+                document.getElementById('app-layer').classList.remove('hidden');
+                let targetView = hash.replace('#', '').split('?')[0] || 'dashboard';
+                if ((!activeUser.phone || !activeUser.svpPin) && targetView !== 'logout') {
+                    targetView = 'setup'; window.location.hash = '#setup';
+                }
+                if (!AppRouter.routes.includes(targetView)) { targetView = 'dashboard'; window.location.hash = '#dashboard'; }
+                document.querySelectorAll('.view-panel').forEach(panel => panel.classList.add('hidden'));
+                document.getElementById(`view-${targetView}`).classList.remove('hidden');
+                document.querySelectorAll('.sidebar-link, .bottom-nav-link').forEach(link => link.classList.remove('active'));
+                const navItem = document.getElementById(`nav-${targetView}`);
+                const bnavItem = document.getElementById(`bnav-${targetView}`);
+                if (navItem) navItem.classList.add('active'); if (bnavItem) bnavItem.classList.add('active');
+                AppRouter.executeViewLifecycle(targetView, hash);
+                lucide.createIcons();
+            },
+            executeViewLifecycle: (view, hash) => {
+                const user = DB.getActiveUser();
+                if(user) {
+                    document.getElementById('user-display-name').innerText = user.name;
+                    document.getElementById('user-display-email').innerText = user.email;
+                }
+                switch (view) {
+                    case 'dashboard': DashboardView.render(); break;
+                    case 'invoices': InvoicesListView.render(); break;
+                    case 'create-invoice': InvoiceFormView.render(hash); break;
+                    case 'invoice-detail': InvoiceDetailView.render(hash); break;
+                    case 'settings': SettingsView.render(); break;
+                }
+            }
+        };
+
+        const Auth = {
+            toggleAuthView: (viewName) => {
+                document.getElementById('auth-layer').classList.remove('hidden');
+                if(viewName === 'login') {
+                    document.getElementById('login-card').classList.remove('hidden');
+                    document.getElementById('signup-card').classList.add('hidden');
+                } else {
+                    document.getElementById('login-card').classList.add('hidden');
+                    document.getElementById('signup-card').classList.remove('hidden');
+                }
+                lucide.createIcons();
+            },
+            handleSignup: (e) => {
+                e.preventDefault();
+                const form = document.getElementById('signup-form');
+                const name = document.getElementById('signup-name').value.trim();
+                const email = document.getElementById('signup-email').value.trim().toLowerCase();
+                const password = document.getElementById('signup-password').value;
+                if(password.length < 6) { return Toast.show("Password must reach 6 characters.", "error"); }
+                const users = DB.get('users');
+                if(users.some(u => u.email === email)) { return Toast.show("Email vector already exists.", "error"); }
+                Loading.start(form);
+                setTimeout(() => {
+                    const newUser = { id: 'usr_' + Date.now(), name, email, password, phone: '', svpPin: '', invoiceCounter: 0 };
+                    users.push(newUser); DB.set('users', users); DB.setActiveUser(newUser);
+                    Loading.stop(form); Toast.show("Identity registered.");
+                    form.reset(); window.location.hash = '#setup';
+                }, 1000);
+            },
+            handleLogin: (e) => {
+                e.preventDefault();
+                const form = document.getElementById('login-form');
+                const email = document.getElementById('login-email').value.trim().toLowerCase();
+                const password = document.getElementById('login-password').value;
+                const users = DB.get('users');
+                const match = users.find(u => u.email === email && u.password === password);
+                if(!match) { return Toast.show("Invalid tracking identifiers.", "error"); }
+                Loading.start(form);
+                setTimeout(() => {
+                    DB.setActiveUser(match); Loading.stop(form);
+                    Toast.show("Security authentication verified.");
+                    form.reset(); window.location.hash = match.svpPin ? '#dashboard' : '#setup';
+                }, 800);
+            },
+            logout: () => { DB.setActiveUser(null); Toast.show("Session purged safely."); window.location.hash = '#login'; }
+        };
+
+        const User = {
+            handleSetup: (e) => {
+                e.preventDefault();
+                const phone = document.getElementById('setup-phone').value.trim();
+                const pin = document.getElementById('setup-pin').value;
+                if(pin.length !== 4 || isNaN(pin)) { return Toast.show("SVP pins require exactly 4 digits.", "error"); }
+                const current = DB.getActiveUser(); current.phone = phone; current.svpPin = pin;
+                User.syncUserToDatabase(current); Toast.show("Parameters committed.");
+                window.location.hash = '#dashboard';
+            },
+            updateProfile: (e) => {
+                e.preventDefault();
+                const current = DB.getActiveUser();
+                current.name = document.getElementById('settings-name').value.trim();
+                current.phone = document.getElementById('settings-phone').value.trim();
+                User.syncUserToDatabase(current); Toast.show("Identity updated.");
+            },
+            updatePassword: (e) => {
+                e.preventDefault();
+                const pass = document.getElementById('settings-pass').value;
+                if(pass.length < 6) { return Toast.show("Requires 6 characters.", "error"); }
+                const current = DB.getActiveUser(); current.password = pass;
+                User.syncUserToDatabase(current); document.getElementById('settings-pass-form').reset();
+                Toast.show("Password updated.");
+            },
+            updatePin: (e) => {
+                e.preventDefault();
+                const pin = document.getElementById('settings-pin').value;
+                if(pin.length !== 4 || isNaN(pin)) { return Toast.show("Invalid PIN configuration format.", "error"); }
+                const current = DB.getActiveUser(); current.svpPin = pin;
+                User.syncUserToDatabase(current); document.getElementById('settings-pin-form').reset();
+                Toast.show("SVP security pin updated safely.");
+            },
+            syncUserToDatabase: (userObj) => {
+                DB.setActiveUser(userObj); const users = DB.get('users');
+                const index = users.findIndex(u => u.id === userObj.id);
+                if(index !== -1) { users[index] = userObj; DB.set('users', users); }
+            }
+        };
+
+        const SecurityEngine = {
+            pendingAction: null,
+            challengeSvp: (onSuccessAction) => {
+                SecurityEngine.pendingAction = onSuccessAction;
+                document.getElementById('svp-modal-input').value = '';
+                document.getElementById('svp-modal').classList.add('open');
+                document.getElementById('svp-modal-input').focus();
+            },
+            closeSvpModal: () => { document.getElementById('svp-modal').classList.remove('open'); SecurityEngine.pendingAction = null; },
+            submitSvpVerification: (e) => {
+                e.preventDefault();
+                const inputPin = document.getElementById('svp-modal-input').value;
+                if (inputPin === DB.getActiveUser().svpPin) {
+                    const actionToExecute = SecurityEngine.pendingAction; SecurityEngine.closeSvpModal();
+                    if(actionToExecute) actionToExecute();
+                } else { Toast.show("SVP Access rejected: Code Invalid.", "error"); }
+            }
+        };
+
+        const Invoice = {
+            activeDeleteId: null,
+            handleFormSubmit: (e) => { e.preventDefault(); SecurityEngine.challengeSvp(() => { Invoice.commitFormToStorage(); }); },
+            commitFormToStorage: () => {
+                const editId = document.getElementById('invoice-edit-id').value;
+                const title = document.getElementById('invoice-title').value.trim();
+                const clientName = document.getElementById('invoice-client-name').value.trim();
+                const clientEmail = document.getElementById('invoice-client-email').value.trim().toLowerCase();
+                const clientPhone = document.getElementById('invoice-client-phone').value.trim();
+                const date = document.getElementById('invoice-date').value;
+                const amount = parseFloat(document.getElementById('invoice-amount').value);
+                const notes = document.getElementById('invoice-notes').value.trim();
+                const user = DB.getActiveUser(); const invoices = DB.get('invoices');
+
+                if (editId) {
+                    const index = invoices.findIndex(inv => inv.id === editId && inv.userId === user.id);
+                    if (index !== -1) {
+                        invoices[index] = { ...invoices[index], title, clientName, clientEmail, clientPhone, date, amount, notes };
+                        DB.set('invoices', invoices); Toast.show("Changes saved.");
+                    }
+                } else {
+                    user.invoiceCounter += 1; const invoiceNumber = `IN-${String(user.invoiceCounter).padStart(2, '0')}`;
+                    const newInvoice = { id: 'inv_' + Date.now(), userId: user.id, invoiceNumber, title, clientName, clientEmail, clientPhone, date, amount, notes, createdAt: new Date().toISOString() };
+                    invoices.push(newInvoice); DB.set('invoices', invoices); User.syncUserToDatabase(user); 
+                    Toast.show(`Invoice minted code assigned: ${invoiceNumber}`);
+                }
+                document.getElementById('invoice-main-form').reset(); window.location.hash = '#invoices';
+            },
+            triggerDeleteConfirm: (id) => {
+                Invoice.activeDeleteId = id; document.getElementById('delete-modal').classList.add('open');
+                document.getElementById('delete-modal-confirm-btn').onclick = () => { Invoice.executePurge(Invoice.activeDeleteId); };
+            },
+            closeDeleteModal: () => { document.getElementById('delete-modal').classList.remove('open'); Invoice.activeDeleteId = null; },
+            executePurge: (id) => {
+                const user = DB.getActiveUser(); let invoices = DB.get('invoices');
+                invoices = invoices.filter(inv => !(inv.id === id && inv.userId === user.id));
+                DB.set('invoices', invoices); Invoice.closeDeleteModal(); Toast.show("Record entry purged safely.");
+                AppRouter.route(window.location.hash.split('?')[0]);
+            }
+        };
+
+        const DashboardView = {
+            render: () => {
+                const user = DB.getActiveUser(); const invoices = DB.get('invoices').filter(i => i.userId === user.id);
+                document.getElementById('welcome-heading').innerText = `Portal: ${user.name}`;
+                document.getElementById('metric-count').innerText = invoices.length;
+                const totalRev = invoices.reduce((acc, curr) => acc + curr.amount, 0);
+                document.getElementById('metric-revenue').innerText = `$${totalRev.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits:2})}`;
+                const sortedRecent = [...invoices].sort((a,b) => new Date(b.createdAt) - new Date(a.createdAt)).slice(0, 3);
+                const tbody = document.getElementById('dashboard-table-body'); tbody.innerHTML = '';
+                if(sortedRecent.length === 0) {
+                    tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; color:var(--text-muted); padding: 24px 0;">No asset logs initialized.</td></tr>`; return;
+                }
+                sortedRecent.forEach(inv => {
+                    const tr = document.createElement('tr');
+                    tr.innerHTML = `<td data-label="ID" style="font-weight:700; color:var(--brand-primary)">${inv.invoiceNumber}</td><td data-label="Client / Title"><div style="font-weight:700">${inv.title}</div><div style="font-size:12px; color:var(--text-muted); margin-top:2px;">${inv.clientName}</div></td><td data-label="Date">${inv.date}</td><td data-label="Amount" style="font-weight:700; color:var(--text-main)">$${inv.amount.toFixed(2)}</td><td data-label="Actions" class="actions-cell"><button class="btn-icon" onclick="window.location.hash='#invoice-detail?id=${inv.id}'"><i data-lucide="eye"></i></button></td>`;
+                    tbody.appendChild(tr);
+                });
+            }
+        };
+
+        const InvoicesListView = {
+            render: () => {
+                const user = DB.getActiveUser(); const invoices = DB.get('invoices').filter(i => i.userId === user.id);
+                const tbody = document.getElementById('invoices-table-body'); tbody.innerHTML = '';
+                if(invoices.length === 0) {
+                    tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; color:var(--text-muted); padding: 24px 0;">Zero records files inside logs.</td></tr>`; return;
+                }
+                invoices.forEach(inv => {
+                    const tr = document.createElement('tr');
+                    tr.innerHTML = `<td data-label="Invoice ID" style="font-weight:700; color:var(--brand-primary)">${inv.invoiceNumber}</td><td data-label="Title Name" style="font-weight:600">${inv.title}</td><td data-label="Client Target">${inv.clientName}</td><td data-label="Date">${inv.date}</td><td data-label="Valuation" style="font-weight:700; color:var(--text-main)">$${inv.amount.toFixed(2)}</td><td data-label="Actions" class="actions-cell"><button class="btn-icon" onclick="window.location.hash='#invoice-detail?id=${inv.id}'"><i data-lucide="eye"></i></button><button class="btn-icon" onclick="window.location.hash='#create-invoice?edit=${inv.id}'"><i data-lucide="edit-2"></i></button><button class="btn-icon danger" onclick="Invoice.triggerDeleteConfirm('${inv.id}')"><i data-lucide="trash-2"></i></button></td>`;
+                    tbody.appendChild(tr);
+                });
+            }
+        };
+
+        const InvoiceFormView = {
+            render: (hash) => {
+                const form = document.getElementById('invoice-main-form'); form.reset();
+                const urlParams = new URLSearchParams(hash.includes('?') ? hash.split('?')[1] : '');
+                const editId = urlParams.get('edit'); const user = DB.getActiveUser();
+                if (editId) {
+                    document.getElementById('invoice-form-dynamic-title').innerText = "Modification Mode Overrides Active";
+                    document.getElementById('invoice-submit-btn').innerText = "Authorize Record Changes";
+                    const match = DB.get('invoices').find(inv => inv.id === editId && inv.userId === user.id);
+                    if(match) {
+                        document.getElementById('invoice-edit-id').value = match.id;
+                        document.getElementById('invoice-auto-num').value = `${match.invoiceNumber} (Locked Base)`;
+                        document.getElementById('invoice-title').value = match.title;
+                        document.getElementById('invoice-client-name').value = match.clientName;
+                        document.getElementById('invoice-client-email').value = match.clientEmail;
+                        document.getElementById('invoice-client-phone').value = match.clientPhone;
+                        document.getElementById('invoice-date').value = match.date;
+                        document.getElementById('invoice-amount').value = match.amount;
+                        document.getElementById('invoice-notes').value = match.notes;
+                    }
+                } else {
+                    document.getElementById('invoice-form-dynamic-title').innerText = "Secure Billing Lifecycle Execution Engine";
+                    document.getElementById('invoice-submit-btn').innerText = "Authorize Transaction Execution Parameters";
+                    document.getElementById('invoice-edit-id').value = '';
+                    document.getElementById('invoice-auto-num').value = `IN-${String(user.invoiceCounter + 1).padStart(2, '0')} (Auto Sequence)`;
+                }
+            }
+        };
+
+        const SettingsView = {
+            render: () => {
+                const user = DB.getActiveUser();
+                document.getElementById('settings-name').value = user.name;
+                document.getElementById('settings-phone').value = user.phone || '';
+                document.getElementById('settings-pin').value = user.svpPin || '';
+            }
+        };
+
+        document.addEventListener("DOMContentLoaded", () => { AppRouter.init(); });
+    </script>
+</body>
+</html>                                                     
